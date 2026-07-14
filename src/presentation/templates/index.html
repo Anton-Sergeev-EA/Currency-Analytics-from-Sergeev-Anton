@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Analytics from Sergeev Anton</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .header .subtitle { font-size: 14px; opacity: 0.7; margin-top: 4px; }
+        .header-status { display: flex; align-items: center; gap: 12px; }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #4ade80; display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px 40px; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: white; border-radius: 12px; padding: 18px 22px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .stat-card .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+        .stat-card .change { font-size: 13px; margin-top: 2px; color: #6b7280; }
+        .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+        @media (max-width: 1024px) { .two-col { grid-template-columns: 1fr; } }
+        .card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; color: #1a1a2e; }
+        .chart-container { height: 320px; position: relative; }
+        .chat-box {
+            height: 260px; overflow-y: auto; border: 1px solid #e5e7eb;
+            border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;
+            background: #fafafa;
+        }
+        .chat-message { margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; max-width: 95%; }
+        .chat-message.user { background: #e5e7eb; margin-left: auto; text-align: right; }
+        .chat-message.bot { background: #dbeafe; margin-right: auto; }
+        .chat-message .sender { font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 2px; }
+        .chat-message .text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+        .chat-input-row { display: flex; gap: 10px; }
+        .chat-input-row input {
+            flex: 1; padding: 10px 14px; border: 1px solid #d1d5db;
+            border-radius: 8px; font-size: 14px; outline: none;
+        }
+        .chat-input-row input:focus { border-color: #1a1a2e; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+        .btn-primary { background: #1a1a2e; color: white; }
+        .btn-primary:hover { background: #2d2d44; }
+        .btn-secondary { background: #e5e7eb; color: #1a1a2e; }
+        .btn-secondary:hover { background: #d1d5db; }
+        .period-selector { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+        .period-btn {
+            padding: 4px 14px; border: 1px solid #d1d5db; border-radius: 20px;
+            background: white; font-size: 13px; cursor: pointer;
+        }
+        .period-btn:hover { background: #f3f4f6; }
+        .period-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+        .forecast-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+        .forecast-table th { text-align: left; padding: 8px 6px; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #4b5563; }
+        .forecast-table td { padding: 8px 6px; border-bottom: 1px solid #f3f4f6; }
+        .forecast-table tr:hover td { background: #f9fafb; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .badge-usd { background: #dbeafe; color: #1d4ed8; }
+        .badge-eur { background: #fce7f3; color: #be185d; }
+        .loading { text-align: center; padding: 40px; color: #6b7280; }
+        .spinner {
+            display: inline-block; width: 30px; height: 30px;
+            border: 3px solid #e5e7eb; border-top-color: #1a1a2e;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .quick-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .quick-btns .btn { font-size: 12px; padding: 4px 12px; }
+        .footer {
+            text-align: center; padding: 20px 40px; color: #6b7280;
+            font-size: 13px; border-top: 1px solid #e5e7eb; margin-top: 20px;
+        }
+        .footer a { color: #1a1a2e; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        @media (max-width: 640px) {
+            .header { padding: 16px 20px; }
+            .container { padding: 16px 20px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .stat-card .value { font-size: 20px; }
+        }
+        .error-msg {
+            background: #fee2e2; color: #991b1b; padding: 12px 16px;
+            border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-content">
+        <div>
+            <h1>Currency Analytics from Sergeev Anton</h1>
+            <div class="subtitle">Анализ и прогнозирование курсов валют от Сергеева Антона</div>
+        </div>
+        <div class="header-status">
+            <span class="status-dot"></span>
+            <span style="font-size:14px;">Система работает</span>
+        </div>
+    </div>
+</div>
+
+<div class="container" id="app">
+    <div id="errorBox" style="display:none;" class="error-msg"></div>
+
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+            <div class="label">USD/RUB</div>
+            <div class="value" id="usdRate">--</div>
+            <div class="change" id="usdChange">Загрузка</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">EUR/RUB</div>
+            <div class="value" id="eurRate">--</div>
+            <div class="change" id="eurChange">Загрузка</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Период данных</div>
+            <div class="value" id="dataPeriod">--</div>
+            <div class="change" id="dataRange">Загрузка</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Волатильность USD</div>
+            <div class="value" id="usdVol">--</div>
+            <div class="change">Стандартное отклонение</div>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="card">
+            <div class="card-title">График курсов валют</div>
+            <div class="period-selector">
+                <button class="period-btn" data-period="30">30 дней</button>
+                <button class="period-btn" data-period="90">90 дней</button>
+                <button class="period-btn active" data-period="180">180 дней</button>
+                <button class="period-btn" data-period="365">365 дней</button>
+                <button class="btn btn-secondary" style="margin-left:auto;padding:4px 14px;font-size:13px;" onclick="refreshData()">Обновить</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="currencyChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">AI-ассистент Антон</div>
+            <div class="chat-box" id="chatBox">
+                <div class="chat-message bot">
+                    <div class="sender">Ассистент Антон</div>
+                    <div class="text">Здравствуйте! Я ваш виртуальный помощник Антон. Я помогу вам с анализом валют. Задайте вопрос о курсах, прогнозах или инвестициях.</div>
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chatInput" placeholder="Введите ваш вопрос..." onkeypress="if(event.key==='Enter') sendQuestion()">
+                <button class="btn btn-primary" onclick="sendQuestion()">Отправить</button>
+            </div>
+            <div class="quick-btns">
+                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по доллару?')">Прогноз USD</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по евро?')">Прогноз EUR</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Сравни доллар и евро')">Сравнить</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Что лучше купить для инвестиций?')">Инвестиции</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Прогноз на 7 дней</div>
+        <div id="forecastContainer">
+            <div class="loading" id="forecastLoading">
+                <div class="spinner"></div>
+                <div style="margin-top:12px;">Загрузка прогноза</div>
+            </div>
+            <table class="forecast-table" id="forecastTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>День</th>
+                        <th>USD/RUB</th>
+                        <th>EUR/RUB</th>
+                    </tr>
+                </thead>
+                <tbody id="forecastBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        Developed by <strong>Сергеев Антон Валентинович</strong> &copy; 2026
+        &bull; <a href="/api/docs" target="_blank">API Documentation</a>
+        &bull; <a href="/health" target="_blank">Health Check</a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+    // ============================================================
+    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+    // ============================================================
+    let chart = null;
+    let currentPeriod = 180;
+    let isLoading = false;
+
+    const chatBox = document.getElementById('chatBox');
+    const chatInput = document.getElementById('chatInput');
+
+    // ============================================================
+    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    // ============================================================
+    function showError(message) {
+        const box = document.getElementById('errorBox');
+        box.textContent = 'Ошибка: ' + message;
+        box.style.display = 'block';
+        setTimeout(() => { box.style.display = 'none'; }, 8000);
+    }
+
+    // ============================================================
+    // 1. ЗАГРУЗКА ДАННЫХ
+    // ============================================================
+    async function loadData(period) {
+        try {
+            const url = '/api/data?period_days=' + period;
+            console.log('Loading data from:', url);
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+            }
+            const data = await resp.json();
+            console.log('Data loaded:', data.count, 'records');
+            return data;
+        } catch (e) {
+            console.error('Load data error:', e);
+            showError('Не удалось загрузить данные: ' + e.message);
+            return null;
+        }
+    }
+
+    async function loadStats() {
+        try {
+            const resp = await fetch('/api/stats');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return await resp.json();
+        } catch (e) {
+            console.error('Load stats error:', e);
+            return null;
+        }
+    }
+
+    async function loadForecast() {
+        try {
+            const resp = await fetch('/api/forecast?days=7&currency=all');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return await resp.json();
+        } catch (e) {
+            console.error('Load forecast error:', e);
+            return null;
+        }
+    }
+
+    // ============================================================
+    // 2. ОБНОВЛЕНИЕ UI
+    // ============================================================
+    async function updateUI(period) {
+        if (isLoading) return;
+        isLoading = true;
+
+        // Показываем загрузку прогноза
+        document.getElementById('forecastLoading').style.display = 'block';
+        document.getElementById('forecastTable').style.display = 'none';
+
+        try {
+            // Загружаем все данные параллельно
+            const [data, stats, forecast] = await Promise.all([
+                loadData(period),
+                loadStats(),
+                loadForecast()
+            ]);
+
+            // Обновляем график
+            if (data && data.data && data.data.length > 0) {
+                updateChart(data.data, period);
+            } else {
+                console.warn('No data for chart');
+            }
+
+            // Обновляем статистику
+            if (stats) {
+                document.getElementById('usdRate').textContent = stats.usd.current.toFixed(2);
+                document.getElementById('eurRate').textContent = stats.eur.current.toFixed(2);
+                document.getElementById('dataPeriod').textContent = stats.total_days + ' дн.';
+                document.getElementById('dataRange').textContent =
+                    new Date(stats.date_range.start).toLocaleDateString() + ' - ' +
+                    new Date(stats.date_range.end).toLocaleDateString();
+                document.getElementById('usdVol').textContent = stats.usd.std.toFixed(2);
+            }
+
+            // Обновляем прогноз
+            if (forecast && forecast.mean) {
+                updateForecastTable(forecast);
+            }
+
+            // Обновляем активные кнопки периода
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.period) === period);
+            });
+
+        } catch (e) {
+            console.error('Update UI error:', e);
+            showError('Ошибка обновления: ' + e.message);
+        }
+
+        isLoading = false;
+    }
+
+    // ============================================================
+    // 3. ГРАФИК
+    // ============================================================
+    function updateChart(data, period) {
+        const dates = data.map(d => new Date(d.date).toLocaleDateString());
+        const usd = data.map(d => d.usd_rate);
+        const eur = data.map(d => d.eur_rate);
+
+        const ctx = document.getElementById('currencyChart').getContext('2d');
+
+        if (chart) {
+            chart.destroy();
+            chart = null;
+        }
+
+        try {
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label: 'USD/RUB',
+                            data: usd,
+                            borderColor: '#2563eb',
+                            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                        },
+                        {
+                            label: 'EUR/RUB',
+                            data: eur,
+                            borderColor: '#dc2626',
+                            backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 20 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(0,0,0,0.06)' },
+                            ticks: { callback: function(value) { return value.toFixed(1); } }
+                        }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
+                }
+            });
+            console.log('Chart created successfully');
+        } catch (e) {
+            console.error('Chart creation error:', e);
+            showError('Ошибка создания графика: ' + e.message);
+        }
+    }
+
+    // ============================================================
+    // 4. ТАБЛИЦА ПРОГНОЗА
+    // ============================================================
+    function updateForecastTable(forecast) {
+        const usd = forecast.mean.usd_rate;
+        const eur = forecast.mean.eur_rate;
+        const body = document.getElementById('forecastBody');
+        body.innerHTML = '';
+
+        const labels = ['Сегодня', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'];
+
+        for (let i = 0; i < Math.min(usd.length, 7); i++) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${labels[i] || 'День ' + (i+1)}</strong></td>
+                <td><span class="badge badge-usd">${usd[i].toFixed(2)}</span></td>
+                <td><span class="badge badge-eur">${eur[i].toFixed(2)}</span></td>
+            `;
+            body.appendChild(tr);
+        }
+
+        document.getElementById('forecastLoading').style.display = 'none';
+        document.getElementById('forecastTable').style.display = 'table';
+    }
+
+    // ============================================================
+    // 5. ЧАТ
+    // ============================================================
+    function addMessage(sender, text, isUser) {
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + (isUser ? 'user' : 'bot');
+        div.innerHTML = `
+            <div class="sender">${isUser ? 'Вы' : 'Ассистент'}</div>
+            <div class="text">${text}</div>
+        `;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function sendQuestion() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        addMessage('Вы', text, true);
+        chatInput.value = '';
+        chatInput.disabled = true;
+
+        try {
+            const resp = await fetch('/api/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: text })
+            });
+
+            if (!resp.ok) {
+                throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+            }
+
+            const data = await resp.json();
+            const answer = data.answer || 'Извините, не удалось получить ответ.';
+            addMessage('Ассистент', answer, false);
+
+        } catch (e) {
+            console.error('Send question error:', e);
+            addMessage('Ассистент', 'Произошла ошибка: ' + e.message, false);
+        }
+
+        chatInput.disabled = false;
+        chatInput.focus();
+    }
+
+    function quickQuestion(q) {
+        chatInput.value = q;
+        sendQuestion();
+    }
+
+    // ============================================================
+    // 6. ОБНОВЛЕНИЕ ДАННЫХ
+    // ============================================================
+    async function refreshData() {
+        const btn = document.querySelector('.period-selector .btn-secondary');
+        btn.textContent = 'Обновление...';
+        btn.disabled = true;
+
+        try {
+            await fetch('/api/refresh', { method: 'POST' });
+            await updateUI(currentPeriod);
+        } catch (e) {
+            console.error('Refresh error:', e);
+            showError('Ошибка обновления: ' + e.message);
+        }
+
+        btn.textContent = 'Обновить';
+        btn.disabled = false;
+    }
+
+    // ============================================================
+    // 7. КНОПКИ ПЕРИОДА
+    // ============================================================
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentPeriod = parseInt(this.dataset.period);
+            updateUI(currentPeriod);
+        });
+    });
+
+    // ============================================================
+    // 8. ИНИЦИАЛИЗАЦИЯ
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page loaded, initializing...');
+        updateUI(currentPeriod);
+        chatInput.focus();
+    });
+
+    // Автообновление каждые 5 минут
+    setInterval(() => {
+        if (!isLoading) {
+            updateUI(currentPeriod);
+        }
+    }, 300000);
+</script>
+
+</body>
+</html>
