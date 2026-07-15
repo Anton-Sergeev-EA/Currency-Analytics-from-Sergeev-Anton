@@ -3,7 +3,7 @@ Advanced currency analysis system with machine learning forecasting, RAG-based A
 interface.
 
 ## Description.
-Currency Analytics Pro is a full-featured web application for analyzing and forecasting currency exchange rates using 
+Currency Analytics from Sergeev Anton is a full-featured web application for analyzing and forecasting currency exchange rates using 
 official data from the Central Bank of Russia. The system employs ensemble machine learning models (LightGBM, XGBoost, 
 Random Forest, Gradient Boosting) to generate forecasts with confidence intervals. It includes a RAG-based AI assistant
 for answering user questions and an interactive web interface with real-time charts.
