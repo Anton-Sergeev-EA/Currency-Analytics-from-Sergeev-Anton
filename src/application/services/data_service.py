@@ -6,9 +6,9 @@ class DataService:
     def __init__(self, loader: DataLoader = None):
         self.loader = loader or DataLoader()
 
-    def get_historical_data(self, period_days: int = 180, refresh: bool = False) -> pd.DataFrame:
+    async def get_historical_data(self, period_days: int = 180, refresh: bool = False) -> pd.DataFrame:
         """
         Получает исторические данные котировок через DataLoader.
         """
-        return self.loader.load_data(period_days)
+        return await self.loader.load_data(period_days)
     

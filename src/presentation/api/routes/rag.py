@@ -10,10 +10,20 @@ service = RAGService()
 @router.post("/api/ask", response_model=AskResponse)
 async def ask_question(request: AskRequest):
     """Ask a question to the RAG system."""
-    response = service.ask(request.question)
+    response = await service.ask(request.question)
 
+    # Если сервис вернул просто строку, заворачиваем её в правильный формат
+    if isinstance(response, str):
+        return AskResponse(
+            answer=response,
+            type="general",
+            confidence=1.0
+        )
+
+    # Если это всё-таки словарь
     return AskResponse(
-        answer=response["answer"],
-        type=response["type"],
-        confidence=response.get("confidence")
+        answer=response.get("answer", str(response)),
+        type=response.get("type", "general"),
+        confidence=response.get("confidence", 1.0)
     )
+

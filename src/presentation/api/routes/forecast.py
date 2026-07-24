@@ -1,9 +1,16 @@
+from enum import Enum
 from fastapi import APIRouter, Query
 from src.application.services.forecast_service import ForecastService
-from src.core.constants import Currency
 
 router = APIRouter(tags=["Forecast"])
 service = ForecastService()
+
+
+class Currency(str, Enum):
+    ALL = "ALL"
+    USD = "usd_rate"
+    EUR = "eur_rate"
+
 
 @router.get("/api/forecast")
 async def get_forecast(
@@ -11,8 +18,9 @@ async def get_forecast(
     currency: Currency = Query(Currency.ALL, description="Currency to forecast")
 ):
     """Get currency forecast."""
+    data = await service.get_forecast_with_uncertainty(days)
+    
     if currency == Currency.ALL:
-        data = service.get_forecast_with_uncertainty(days)
         return {
             "currency": "ALL",
             "days": days,
@@ -30,12 +38,11 @@ async def get_forecast(
             }
         }
     else:
-        data = service.get_forecast_with_uncertainty(days)[currency.value]
+        curr_data = data[currency.value]
         return {
             "currency": currency.value,
             "days": days,
-            "mean": data["mean"],
-            "lower_bound": data["lower_bound"],
-            "upper_bound": data["upper_bound"]
+            "mean": curr_data["mean"],
+            "lower_bound": curr_data["lower_bound"],
+            "upper_bound": curr_data["upper_bound"]
         }
-    

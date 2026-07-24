@@ -1,104 +1,72 @@
-from typing import Dict, List, Optional
-import pandas as pd
-from src.infrastructure.ml.trainers.trainer import ModelTrainer
-from src.infrastructure.ml.predictors.predictor import Predictor
-from src.infrastructure.data.loader import DataLoader
-from src.core.config import settings
 import logging
+from typing import Dict, Any, Optional
+import numpy as np
+import pandas as pd
+
+from src.application.services.data_service import DataService
 
 logger = logging.getLogger(__name__)
 
 
 class ForecastService:
-    def __init__(self):
-        self.trainer = ModelTrainer()
-        self.predictor = Predictor()
-        self.loader = DataLoader()
-        self.models = None
+    def __init__(self, data_service: Optional[DataService] = None):
+        self.data_service = data_service or DataService()
+        self._models = {}
 
-    def _ensure_models(self):
-        if self.models is None:
-            logger.info("Models not trained, training now...")
-            df = self.loader.load_data(settings.DEFAULT_PERIOD_DAYS)
-
+    async def _ensure_models(self) -> None:
+        """
+        Проверяет и загружает исторические данные через DataService.
+        """
+        try:
+            df = await self.data_service.get_historical_data(365)
             if df is not None and len(df) > 30:
-                self.models = self.trainer.train_models(df)
-                logger.info("Models trained successfully")
+                self._fit_simple_models(df)
             else:
-                logger.warning("Not enough data to train models, using fallback")
-                self.models = self._create_fallback_models()
+                logger.warning("Not enough data to fit forecast models properly.")
+        except Exception as e:
+            logger.error(f"Error in _ensure_models: {e}")
 
-    def _create_fallback_models(self) -> dict:
-        from src.infrastructure.ml.models.ensemble import EnsembleModel
-        import numpy as np
+    def _fit_simple_models(self, df: pd.DataFrame) -> None:
+        """
+        Логика расчета тренда и неопределенности на основе исторических данных.
+        """
+        for curr in ['usd_rate', 'eur_rate']:
+            series = df[curr].dropna().values
+            if len(series) > 0:
+                last_val = series[-1]
+                std = np.std(np.diff(series)) if len(series) > 1 else 1.0
+                self._models[curr] = {
+                    'last_val': float(last_val),
+                    'std': float(std)
+                }
 
-        models = {}
-        for currency in ['usd_rate', 'eur_rate']:
-            model = EnsembleModel(f"{currency}_ensemble")
-
-            X_fake = pd.DataFrame({
-                'feature1': np.random.randn(50),
-                'feature2': np.random.randn(50),
-                'feature3': np.random.randn(50)
-            })
-            y_fake = pd.Series(np.random.randn(50) + 75)
-
-            model.train(X_fake, y_fake, cv_folds=2)
-            model.is_trained = True
-            models[currency] = model
-            logger.info(f"Fallback model created for {currency}")
-
-        return models
-
-    def get_forecast(self, days: int = 30) -> Dict[str, List[float]]:
-        self._ensure_models()
-        df = self.loader.load_data(settings.DEFAULT_PERIOD_DAYS)
-
-        if df is None or len(df) < 10:
-            return self._get_simple_forecast(days)
-
-        return self.predictor.predict(self.models, df, days)
-
-    def get_forecast_with_uncertainty(self, days: int = 30) -> Dict[str, Dict]:
-        self._ensure_models()
-        df = self.loader.load_data(settings.DEFAULT_PERIOD_DAYS)
-
-        if df is None or len(df) < 10:
-            return self._get_simple_forecast_with_uncertainty(days)
-
-        return self.predictor.predict_with_uncertainty(self.models, df, days)
-
-    def _get_simple_forecast(self, days: int) -> Dict[str, List[float]]:
-        import numpy as np
-        df = self.loader.load_data(30)
-
-        if df is None or len(df) == 0:
-            base_usd = 75.0
-            base_eur = 82.0
-        else:
-            base_usd = float(df['usd_rate'].iloc[-1])
-            base_eur = float(df['eur_rate'].iloc[-1])
-
-        np.random.seed(42)
-        usd_forecast = [base_usd + i * 0.05 + np.random.normal(0, 0.2) for i in range(days)]
-        eur_forecast = [base_eur + i * 0.04 + np.random.normal(0, 0.18) for i in range(days)]
-
-        return {
-            'usd_rate': usd_forecast,
-            'eur_rate': eur_forecast
-        }
-
-    def _get_simple_forecast_with_uncertainty(self, days: int) -> Dict[str, Dict]:
-        forecast = self._get_simple_forecast(days)
+    async def get_forecast_with_uncertainty(self, days: int = 30) -> Dict[str, Any]:
+        """
+        Возвращает прогноз курсов с интервалами неопределенности.
+        """
+        await self._ensure_models()
 
         result = {}
-        for currency, values in forecast.items():
-            std = 0.5
-            result[currency] = {
-                'mean': values,
-                'lower_bound': [v - std for v in values],
-                'upper_bound': [v + std for v in values]
+        for curr_key, curr_name in [('usd_rate', 'USD'), ('eur_rate', 'EUR')]:
+            model_info = self._models.get(curr_key)
+
+            if not model_info:
+                last_val = 78.40 if curr_key == 'usd_rate' else 89.44
+                std = 0.5
+            else:
+                last_val = model_info['last_val']
+                std = model_info['std']
+
+            horizon = np.arange(1, days + 1)
+            mean_forecast = [round(float(last_val + 0.02 * d), 4) for d in horizon]
+            lower_bound = [round(float(m - (1.96 * std * np.sqrt(d / 7.0))), 4) for d, m in zip(horizon, mean_forecast)]
+            upper_bound = [round(float(m + (1.96 * std * np.sqrt(d / 7.0))), 4) for d, m in zip(horizon, mean_forecast)]
+
+            result[curr_key] = {
+                "mean": mean_forecast,
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound
             }
 
         return result
-    
+

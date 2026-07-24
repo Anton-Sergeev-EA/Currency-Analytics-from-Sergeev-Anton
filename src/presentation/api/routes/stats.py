@@ -9,7 +9,7 @@ service = DataService()
 @router.get("/api/stats")
 async def get_stats():
     """Get statistics about currency data."""
-    df = service.get_historical_data(settings.DEFAULT_PERIOD_DAYS)
+    df = await service.get_historical_data(settings.DEFAULT_PERIOD_DAYS)
 
     if len(df) == 0:
         return {"error": "No data available"}

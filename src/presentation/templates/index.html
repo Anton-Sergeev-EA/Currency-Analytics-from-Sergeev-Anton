@@ -222,9 +222,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-    // ============================================================
-    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-    // ============================================================
     let chart = null;
     let currentPeriod = 180;
     let isLoading = false;
@@ -232,9 +229,6 @@
     const chatBox = document.getElementById('chatBox');
     const chatInput = document.getElementById('chatInput');
 
-    // ============================================================
-    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // ============================================================
     function showError(message) {
         const box = document.getElementById('errorBox');
         box.textContent = 'Ошибка: ' + message;
@@ -242,23 +236,14 @@
         setTimeout(() => { box.style.display = 'none'; }, 8000);
     }
 
-    // ============================================================
-    // 1. ЗАГРУЗКА ДАННЫХ
-    // ============================================================
     async function loadData(period) {
         try {
             const url = '/api/data?period_days=' + period;
-            console.log('Loading data from:', url);
             const resp = await fetch(url);
-            if (!resp.ok) {
-                throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
-            }
-            const data = await resp.json();
-            console.log('Data loaded:', data.count, 'records');
-            return data;
+            if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+            return await resp.json();
         } catch (e) {
             console.error('Load data error:', e);
-            showError('Не удалось загрузить данные: ' + e.message);
             return null;
         }
     }
@@ -276,7 +261,7 @@
 
     async function loadForecast() {
         try {
-            const resp = await fetch('/api/forecast?days=7&currency=all');
+            const resp = await fetch('/api/forecast?days=7&currency=ALL');
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             return await resp.json();
         } catch (e) {
@@ -285,69 +270,55 @@
         }
     }
 
-    // ============================================================
-    // 2. ОБНОВЛЕНИЕ UI
-    // ============================================================
     async function updateUI(period) {
         if (isLoading) return;
         isLoading = true;
 
-        // Показываем загрузку прогноза
         document.getElementById('forecastLoading').style.display = 'block';
         document.getElementById('forecastTable').style.display = 'none';
 
         try {
-            // Загружаем все данные параллельно
-            const [data, stats, forecast] = await Promise.all([
-                loadData(period),
-                loadStats(),
-                loadForecast()
-            ]);
+            const data = await loadData(period);
+            const stats = await loadStats();
 
-            // Обновляем график
             if (data && data.data && data.data.length > 0) {
                 updateChart(data.data, period);
-            } else {
-                console.warn('No data for chart');
             }
 
-            // Обновляем статистику
             if (stats) {
                 document.getElementById('usdRate').textContent = stats.usd.current.toFixed(2);
                 document.getElementById('eurRate').textContent = stats.eur.current.toFixed(2);
-                
-                // Перезаписываем текст под карточками
                 document.getElementById('usdChange').textContent = 'Официальный курс ЦБ';
                 document.getElementById('eurChange').textContent = 'Официальный курс ЦБ';
-
                 document.getElementById('dataPeriod').textContent = stats.total_days + ' дн.';
                 document.getElementById('dataRange').textContent =
                     new Date(stats.date_range.start).toLocaleDateString() + ' - ' +
                     new Date(stats.date_range.end).toLocaleDateString();
                 document.getElementById('usdVol').textContent = stats.usd.std.toFixed(2);
             }
-
-            // Обновляем прогноз
-            if (forecast && forecast.mean) {
-                updateForecastTable(forecast);
-            }
-
-            // Обновляем активные кнопки периода
-            document.querySelectorAll('.period-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.period) === period);
-            });
-
         } catch (e) {
             console.error('Update UI error:', e);
-            showError('Ошибка обновления: ' + e.message);
         }
+
+        try {
+            const forecast = await loadForecast();
+            if (forecast && forecast.mean) {
+                updateForecastTable(forecast);
+            } else {
+                document.getElementById('forecastLoading').innerHTML = '<div style="color:#dc2626;">Не удалось загрузить прогноз</div>';
+            }
+        } catch (e) {
+            console.error('Forecast load error:', e);
+            document.getElementById('forecastLoading').innerHTML = '<div style="color:#dc2626;">Ошибка загрузки прогноза</div>';
+        }
+
+        document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.period) === period);
+        });
 
         isLoading = false;
     }
 
-    // ============================================================
-    // 3. ГРАФИК
-    // ============================================================
     function updateChart(data, period) {
         const dates = data.map(d => new Date(d.date).toLocaleDateString());
         const usd = data.map(d => d.usd_rate);
@@ -417,16 +388,11 @@
                     interaction: { intersect: false, mode: 'index' }
                 }
             });
-            console.log('Chart created successfully');
         } catch (e) {
             console.error('Chart creation error:', e);
-            showError('Ошибка создания графика: ' + e.message);
         }
     }
 
-    // ============================================================
-    // 4. ТАБЛИЦА ПРОГНОЗА
-    // ============================================================
     function updateForecastTable(forecast) {
         const usd = forecast.mean.usd_rate;
         const eur = forecast.mean.eur_rate;
@@ -449,9 +415,6 @@
         document.getElementById('forecastTable').style.display = 'table';
     }
 
-    // ============================================================
-    // 5. ЧАТ
-    // ============================================================
     function addMessage(sender, text, isUser) {
         const div = document.createElement('div');
         div.className = 'chat-message ' + (isUser ? 'user' : 'bot');
@@ -478,9 +441,7 @@
                 body: JSON.stringify({ question: text })
             });
 
-            if (!resp.ok) {
-                throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
-            }
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
             const data = await resp.json();
             const answer = data.answer || 'Извините, не удалось получить ответ.';
@@ -488,7 +449,7 @@
 
         } catch (e) {
             console.error('Send question error:', e);
-            addMessage('Ассистент', 'Произошла ошибка: ' + e.message, false);
+            addMessage('Ассистент', 'Произошла ошибка при отправке вопроса.', false);
         }
 
         chatInput.disabled = false;
@@ -500,9 +461,6 @@
         sendQuestion();
     }
 
-    // ============================================================
-    // 6. ОБНОВЛЕНИЕ ДАННЫХ
-    // ============================================================
     async function refreshData() {
         const btn = document.querySelector('.period-selector .btn-secondary');
         btn.textContent = 'Обновление...';
@@ -513,16 +471,13 @@
             await updateUI(currentPeriod);
         } catch (e) {
             console.error('Refresh error:', e);
-            showError('Ошибка обновления: ' + e.message);
+            showError('Ошибка обновления данных');
         }
 
         btn.textContent = 'Обновить';
         btn.disabled = false;
     }
 
-    // ============================================================
-    // 7. КНОПКИ ПЕРИОДА
-    // ============================================================
     document.querySelectorAll('.period-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             currentPeriod = parseInt(this.dataset.period);
@@ -530,16 +485,11 @@
         });
     });
 
-    // ============================================================
-    // 8. ИНИЦИАЛИЗАЦИЯ
-    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Page loaded, initializing...');
         updateUI(currentPeriod);
         chatInput.focus();
     });
 
-    // Автообновление каждые 5 минут
     setInterval(() => {
         if (!isLoading) {
             updateUI(currentPeriod);

@@ -9,13 +9,13 @@ def get_data_service() -> DataService:
 
 
 @router.get("/api/data")
-def get_data(
+async def get_data(
     period_days: int = 180, 
     refresh: bool = False, 
     service: DataService = Depends(get_data_service)
 ):
     try:
-        df = service.get_historical_data(period_days, refresh)
+        df = await service.get_historical_data(period_days, refresh)
         return {
             "status": "success",
             "count": len(df),
