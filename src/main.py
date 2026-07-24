@@ -1,96 +1,49 @@
 import os
-from contextlib import asynccontextmanager
+import uvicorn
+from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from src.core.config import settings
-from src.common.logger.logger import setup_logging, logger
-from src.presentation.api.routes import health, data, forecast, rag, stats, admin
 
-setup_logging(settings.LOG_LEVEL)
-templates = Jinja2Templates(directory="src/presentation/templates")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup/shutdown."""
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-
-    for directory in [settings.DATA_DIR, settings.MODELS_DIR, settings.LOG_DIR, settings.CACHE_DIR]:
-        os.makedirs(directory, exist_ok=True)
-        logger.info(f"Directory created: {directory}")
-
-    logger.info("Application started successfully")
-
-    yield
-
-    logger.info("Application shutting down.")
-
+from src.presentation.api.routes import data, forecast, stats, health, rag, admin
 
 app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
+    title="Currency Analytics Pro",
+    version="2.0.0",
     description="Advanced Currency Analysis System with ML and RAG",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
-    lifespan=lifespan
+    docs_url="/api/docs"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "presentation" / "templates"
+STATIC_DIR = BASE_DIR / "presentation" / "static"
 
-app.include_router(health.router)
-app.include_router(data.router)
-app.include_router(forecast.router)
-app.include_router(rag.router)
-app.include_router(stats.router)
-app.include_router(admin.router)
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-@app.get("/")
-async def root(request: Request):
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+app.include_router(data.router)
+app.include_router(forecast.router)
+app.include_router(stats.router)
 
-@app.get("/api")
-async def api_root():
-    return {
-        "name": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "status": "operational",
-        "docs": "/api/docs",
-        "health": "/health"
-    }
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "detail": str(exc) if settings.DEBUG else "An unexpected error occurred"
-        }
-    )
-
+if hasattr(health, 'router'):
+    app.include_router(health.router)
+if hasattr(rag, 'router'):
+    app.include_router(rag.router)
+if hasattr(admin, 'router'):
+    app.include_router(admin.router)
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(
         "src.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        host="0.0.0.0",
+        port=8000,
+        reload=True
     )

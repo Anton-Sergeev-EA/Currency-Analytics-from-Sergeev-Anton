@@ -137,17 +137,17 @@
         <div class="stat-card">
             <div class="label">USD/RUB</div>
             <div class="value" id="usdRate">--</div>
-            <div class="change" id="usdChange">Загрузка</div>
+            <div class="change" id="usdChange">Официальный курс ЦБ</div>
         </div>
         <div class="stat-card">
             <div class="label">EUR/RUB</div>
             <div class="value" id="eurRate">--</div>
-            <div class="change" id="eurChange">Загрузка</div>
+            <div class="change" id="eurChange">Официальный курс ЦБ</div>
         </div>
         <div class="stat-card">
             <div class="label">Период данных</div>
             <div class="value" id="dataPeriod">--</div>
-            <div class="change" id="dataRange">Загрузка</div>
+            <div class="change" id="dataRange">Загрузка...</div>
         </div>
         <div class="stat-card">
             <div class="label">Волатильность USD</div>
@@ -315,6 +315,11 @@
             if (stats) {
                 document.getElementById('usdRate').textContent = stats.usd.current.toFixed(2);
                 document.getElementById('eurRate').textContent = stats.eur.current.toFixed(2);
+                
+                // Перезаписываем текст под карточками
+                document.getElementById('usdChange').textContent = 'Официальный курс ЦБ';
+                document.getElementById('eurChange').textContent = 'Официальный курс ЦБ';
+
                 document.getElementById('dataPeriod').textContent = stats.total_days + ' дн.';
                 document.getElementById('dataRange').textContent =
                     new Date(stats.date_range.start).toLocaleDateString() + ' - ' +
