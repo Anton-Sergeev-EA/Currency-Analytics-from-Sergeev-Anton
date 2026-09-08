@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  currency-analytics:
+    extends:
+      file: docker-compose.yml
+      service: currency-analytics
+    environment:
+      - DATABASE_URL=postgresql://analytics:${POSTGRES_PASSWORD}@db:5432/currency_analytics
+    restart: always
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  db:
+    extends:
+      file: docker-compose.yml
+      service: db
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    container_name: currency-analytics-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - currency-analytics
+    networks:
+      - analytics-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        

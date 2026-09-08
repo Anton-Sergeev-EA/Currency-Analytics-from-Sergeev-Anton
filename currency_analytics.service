@@ -1,0 +1,13 @@
+[Unit]
+Description=Currency Analytics FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/currency-analyzer
+ExecStart=/root/currency-analyzer/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
