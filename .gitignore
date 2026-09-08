@@ -1,0 +1,46 @@
+# Секреты и конфиги
+.env
+.env.*
+*.key
+*.pem
+*.crt
+*.p12
+*.jks
+*.keystore
+*secret*
+*password*
+*credential*
+*private*
+
+# Логи и данные
+logs/
+*.log
+data/
+*.db
+*.sqlite
+
+# Модели
+models/
+*.joblib
+*.pkl
+*.h5
+*.pt
+*.pth
+
+# Временные файлы
+__pycache__/
+*.pyc
+*.pyo
+*.tmp
+*.swp
+.idea/
+.vscode/
+.DS_Store
+
+# Бэкапы
+*.bak
+*.bak2
+*.save
+*.backup
+
+# Docker

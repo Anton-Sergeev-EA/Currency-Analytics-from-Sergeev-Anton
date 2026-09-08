@@ -1,0 +1,63 @@
+# Python.
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE.
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.vscode/
+*.iml
+
+# Git.
+.git/
+.gitignore
+.gitattributes
+
+# Документация.
+*.md
+LICENSE
+README*
+
+# Данные и модели (монтируются через volumes).
+data/
+models/
+logs/
+*.db
+*.sqlite3
+*.sqlite
+
+# Системные файлы.
+install.sh
+cron_setup.txt
+currency_analytics.service
+Makefile
+*.tmp
+*.temp
+
+# Docker.
+Dockerfile
+docker-compose*.yml
+.dockerignore
+.nginx.conf
+
+# Настройки окружения.
+.env
+.env.local
+.env.*.local
+production.env
