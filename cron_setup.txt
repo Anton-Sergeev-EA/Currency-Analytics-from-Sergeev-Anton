@@ -1,0 +1,21 @@
+# Currency Analytics - настройка cron для автоматического обновления курсов валют
+# Установка: crontab -e, затем вставить следующие строки:
+
+# Currency Analytics - обновление курсов валют
+# 00:00, 03:00, 06:00, 08:00, 10:30, 13:30, 16:30, 19:00, 21:00 MSK
+
+0 0 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 3 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 6 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 8 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 10 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 13 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 16 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+00 19 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 21 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+
+# Резервное обновление каждые 2 часа
+0 */2 * * * curl -s -X POST http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+
+# Очистка логов раз в неделю (воскресенье в 00:00)
+0 0 * * 0 find /root/currency-analyzer/logs -name "*.log" -mtime +30 -delete 2>/dev/null
