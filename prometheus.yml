@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'currency-analytics'
+    static_configs:
+      - targets: ['currency-analytics:8000']
+    metrics_path: '/metrics'
+  
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
