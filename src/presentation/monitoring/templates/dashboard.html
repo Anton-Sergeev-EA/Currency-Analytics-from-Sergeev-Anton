@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Мониторинг системы</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #1a1a2e; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .status-ok { color: #48bb78; }
+        .status-error { color: #fc8181; }
+        .metric { font-size: 24px; font-weight: bold; }
+        .metric-label { color: #718096; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f7fafc; font-weight: 600; }
+        .good { color: #48bb78; }
+        .medium { color: #ed8936; }
+        .bad { color: #fc8181; }
+        .chart-container { height: 200px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>📊 Мониторинг системы</h1>
+    <div class="grid" id="dashboard">
+        <div class="card">
+            <h3>Статус системы</h3>
+            <div id="health">Загрузка...</div>
+        </div>
+        <div class="card">
+            <h3>Модели</h3>
+            <div id="models">Загрузка...</div>
+        </div>
+        <div class="card">
+            <h3>Текущие курсы</h3>
+            <div id="rates">Загрузка...</div>
+        </div>
+        <div class="card">
+            <h3>Качество данных</h3>
+            <div id="quality">Загрузка...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📈 Точность моделей</h3>
+        <div id="accuracyTable">Загрузка...</div>
+    </div>
+
+    <div class="card">
+        <h3>📊 История предсказаний</h3>
+        <div class="chart-container">
+            <canvas id="predictionChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📉 Метрики качества предсказаний</h3>
+        <div id="metrics">Загрузка...</div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        async function loadData() {
+            try {
+                // Health
+                const health = await fetch('/monitoring/api/health').then(r => r.json());
+                document.getElementById('health').innerHTML = `<span class="status-ok">✅ Здоров</span>`;
+
+                // Models
+                const models = await fetch('/monitoring/api/models').then(r => r.json());
+                document.getElementById('models').innerHTML = Object.keys(models.models).join(', ');
+
+                // Rates
+                const rates = await fetch('/monitoring/api/current-rates').then(r => r.json());
+                document.getElementById('rates').innerHTML = `USD: ${rates.data.USD}, EUR: ${rates.data.EUR}`;
+
+                // Quality
+                const quality = await fetch('/monitoring/api/data-quality').then(r => r.json());
+                document.getElementById('quality').innerHTML = `
+                    Записей: ${quality.data.total_records}<br>
+                    Полнота: ${quality.data.completeness}%
+                `;
+
+                // Accuracy Table
+                const accuracy = await fetch('/monitoring/api/model-accuracy').then(r => r.json());
+                let tableHtml = `<table>
+                    <tr><th>Модель</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Статус</th></tr>`;
+                for (const [key, value] of Object.entries(accuracy.data)) {
+                    const status = value.r2 > 0.85 ? '✅ Отлично' : value.r2 > 0.7 ? '⚠️ Средне' : '❌ Плохо';
+                    const statusClass = value.r2 > 0.85 ? 'good' : value.r2 > 0.7 ? 'medium' : 'bad';
+                    tableHtml += `
+                        <tr>
+                            <td><strong>${key}</strong></td>
+                            <td>${value.rmse.toFixed(4)}</td>
+                            <td>${value.mae.toFixed(4)}</td>
+                            <td>${value.mape.toFixed(2)}%</td>
+                            <td>${value.r2.toFixed(4)}</td>
+                            <td class="${statusClass}">${status}</td>
+                        </tr>
+                    `;
+                }
+                tableHtml += `</table>`;
+                document.getElementById('accuracyTable').innerHTML = tableHtml;
+
+                // Metrics (расширенные метрики)
+                const metricsHtml = `
+                    <div class="grid">
+                        <div class="card">
+                            <div class="metric-label">Средняя ошибка (MAE)</div>
+                            <div class="metric">${accuracy.data.usd.mae.toFixed(4)}</div>
+                        </div>
+                        <div class="card">
+                            <div class="metric-label">Корень из MSE (RMSE)</div>
+                            <div class="metric">${accuracy.data.usd.rmse.toFixed(4)}</div>
+                        </div>
+                        <div class="card">
+                            <div class="metric-label">Средняя процентная ошибка (MAPE)</div>
+                            <div class="metric">${accuracy.data.usd.mape.toFixed(2)}%</div>
+                        </div>
+                        <div class="card">
+                            <div class="metric-label">Коэффициент детерминации (R²)</div>
+                            <div class="metric">${accuracy.data.usd.r2.toFixed(4)}</div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('metrics').innerHTML = metricsHtml;
+
+                // Chart (история предсказаний)
+                const prediction = await fetch('/monitoring/api/prediction-test').then(r => r.json());
+                updateChart(prediction);
+
+            } catch(e) {
+                document.getElementById('health').innerHTML = '<span class="status-error">❌ Ошибка</span>';
+            }
+        }
+
+        function updateChart(data) {
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            if (chart) { chart.destroy(); }
+
+            const labels = Object.keys(data.predictions);
+            const values = Object.values(data.predictions);
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Предсказанные значения',
+                        data: values,
+                        backgroundColor: ['#48bb78', '#4299e1', '#ed8936'],
+                        borderColor: '#2d3748',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
+
