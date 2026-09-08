@@ -15,12 +15,12 @@
 # Логи и данные
 logs/
 *.log
-data/
+/data/
 *.db
 *.sqlite
 
 # Модели
-models/
+/models/
 *.joblib
 *.pkl
 *.h5
@@ -44,3 +44,4 @@ __pycache__/
 *.backup
 
 # Docker
+.venv/
