@@ -1,8 +1,7 @@
 import hashlib
-import json
 import random
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -11,7 +10,12 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 
-from ..config import settings
+# `from ..config import settings` used to be here, importing a module that
+# no longer exists (src/config.py was consolidated into src/core/config.py
+# - see that file's docstring) and that this class never actually used.
+# It broke `import src.ab_testing.ab_service` outright, which meant
+# scripts/run_ab_production.py and scripts/update_ab_actual_rates.py
+# (both `from ab_testing.ab_service import get_ab_service`) couldn't run.
 from ..infrastructure.ml.models.ensemble import EnsembleModel
 
 Base = declarative_base()
@@ -143,18 +147,16 @@ class ABTestService:
         """Обновляет фактические курсы для завершенных прогнозов."""
         session = self.Session()
         try:
-            # Находим прогнозы, где известен фактический курс.
-            # Здесь должна быть логика получения актуальных курсов.
-            # Для примера - заглушка.
-            logs = session.query(ABTestLog).filter(
-                ABTestLog.forecast_date.isnot(None),
-                ABTestLog.actual_rate.is_(None)
-            ).all()
-            
-            # В реальности здесь вы бы брали курсы из вашей БД.
-            # for log in logs:
-            #     actual = get_actual_rate(log.forecast_date)
-            #     log.actual_rate = actual
+            # Заглушка: логика получения фактических курсов не реализована.
+            # В реальности здесь нужно запросить прогнозы без известного
+            # фактического курса и обновить их, например:
+            #
+            #   pending = session.query(ABTestLog).filter(
+            #       ABTestLog.forecast_date.isnot(None),
+            #       ABTestLog.actual_rate.is_(None)
+            #   ).all()
+            #   for log in pending:
+            #       log.actual_rate = get_actual_rate(log.forecast_date)
             
             session.commit()
         except Exception as e:
@@ -206,6 +208,9 @@ class ABTestService:
                 errors_a = df[df['variant'] == 'A']['predicted'] - df[df['variant'] == 'A']['actual']
                 errors_b = df[df['variant'] == 'B']['predicted'] - df[df['variant'] == 'B']['actual']
                 
+                # scipy is a listed dependency (requirements.txt) specifically
+                # for this ttest_ind call - it wasn't before, so this branch
+                # (both variants having data) raised ModuleNotFoundError.
                 from scipy import stats as scipy_stats
                 t_stat, p_value = scipy_stats.ttest_ind(errors_a, errors_b)
                 stats['statistical_significance'] = {
