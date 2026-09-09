@@ -33,8 +33,7 @@ class ResponseGenerator:
             forecast_start = forecast_match.group(1)
             forecast_end = forecast_match.group(2)
         else:
-            # Если прогноз не найден, ищем даты с курсами
-            dates = re.findall(r'"date":\s*"([^"]+)"', context)
+            # Если прогноз не найден, ищем курсы
             rates = re.findall(r'"rate":\s*([\d.]+)', context)
             if len(rates) >= 2:
                 forecast_start = rates[0]

@@ -1,6 +1,4 @@
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import JSONResponse
-from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)

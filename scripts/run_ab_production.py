@@ -1,14 +1,11 @@
 import sys
-import os
 from pathlib import Path
 import requests
 import json
-from datetime import datetime
 import time
 
 sys.path.append(str(Path(__file__).parent.parent / 'src'))
 
-from ab_testing.ab_service import get_ab_service
 
 def test_ab_endpoints(base_url="http://localhost:8000"):
     """Тестирует эндпоинты A/B-теста."""

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -9,8 +9,8 @@ class AskResponse(BaseModel):
     confidence: Optional[float] = Field(None, ge=0, le=1, description="Confidence score")
     timestamp: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "answer": "Прогноз USD:\nТекущий: 75.23 RUB\nЧерез 30 дней: 76.12 RUB",
                 "type": "forecast",
@@ -18,6 +18,7 @@ class AskResponse(BaseModel):
                 "timestamp": "2026-01-13T12:00:00"
             }
         }
+    )
 
 
 class DataResponse(BaseModel):

@@ -1,7 +1,5 @@
 import sys
-import os
 from pathlib import Path
-from datetime import datetime, timedelta
 
 sys.path.append(str(Path(__file__).parent.parent / 'src'))
 
@@ -17,7 +15,7 @@ def main():
     print("Фактические курсы обновлены!")
     
     stats = service.get_ab_stats(days=30)
-    print(f"\n Текущая статистика A/B-теста:")
+    print("\n Текущая статистика A/B-теста:")
     print(f"- Модель A: MAE = {stats.get('variant_A', {}).get('mae', 'N/A')}")
     print(f"- Модель B: MAE = {stats.get('variant_B', {}).get('mae', 'N/A')}")
     

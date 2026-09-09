@@ -3,8 +3,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import uuid
 import logging
 
-from .ab_service import get_ab_service
-
 logger = logging.getLogger(__name__)
 
 class ABTestMiddleware(BaseHTTPMiddleware):

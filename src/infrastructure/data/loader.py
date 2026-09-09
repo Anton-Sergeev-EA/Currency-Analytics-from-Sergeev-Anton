@@ -3,13 +3,11 @@ import aiohttp
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List
 from bs4 import BeautifulSoup
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.infrastructure.data.cache import CacheManager
 import logging
-import json
-import re
 
 logger = logging.getLogger(__name__)
 
