@@ -439,7 +439,7 @@
         chatInput.disabled = true;
 
         try {
-            const resp = await fetch('/api/rag/api/ask', {
+            const resp = await fetch('/api/rag/ask', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: text })
@@ -471,7 +471,7 @@
         btn.disabled = true;
 
         try {
-            await fetch('/api/data/refresh', { method: 'POST' });
+            await fetch('/api/refresh', { method: 'POST' });
             await updateUI(currentPeriod);
         } catch (e) {
             console.error('Refresh error:', e);
@@ -488,7 +488,7 @@
         btn.disabled = true;
 
         try {
-            const resp = await fetch('/api/data/force-refresh', { method: 'POST' });
+            const resp = await fetch('/api/force-refresh', { method: 'POST' });
             const data = await resp.json();
             if (data.status === 'success') {
                 showError('✅ Data refreshed successfully!');

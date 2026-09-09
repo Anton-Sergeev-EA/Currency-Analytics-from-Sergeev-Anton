@@ -7,7 +7,7 @@ router = APIRouter(tags=["RAG"])
 service = RAGService()
 
 
-@router.post("/api/ask", response_model=AskResponse)
+@router.post("/ask", response_model=AskResponse)
 async def ask_question(request: AskRequest):
     response = await service.ask(request.question)
 

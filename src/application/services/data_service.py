@@ -11,12 +11,19 @@ class DataService:
     def __init__(self):
         self.loader = DataLoader()
 
-    async def get_historical_data(self, period_days: int = 180) -> Dict[str, Any]:
+    async def get_historical_data(self, period_days: int = 180, refresh: bool = False) -> Dict[str, Any]:
         """
         Возвращает исторические данные в универсальном формате:
         как в виде списков для графиков (dates, usd, eur), так и в виде списка записей (records).
+
+        `refresh=True` bypasses the loader's cache and re-fetches from the
+        CBR API (used by the admin /api/refresh and /api/force-refresh
+        endpoints) - previously this parameter didn't exist at all, so
+        calling it always silently served cached data and, when passed as
+        a keyword argument by the admin refresh endpoint, raised
+        TypeError instead.
         """
-        df = await self.loader.load_data(period_days)
+        df = await (self.loader.refresh_data(period_days) if refresh else self.loader.load_data(period_days))
         if df is None or df.empty:
             return {"dates": [], "usd": [], "eur": [], "usd_rate": [], "eur_rate": [], "records": []}
 
