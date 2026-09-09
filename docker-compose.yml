@@ -4,29 +4,46 @@ services:
       context: .
       dockerfile: Dockerfile
     image: currency-analytics:${APP_VERSION:-latest}
-    container_name: currency-analytics-app
+    # No container_name here: docker-compose.prod.yml scales this service
+    # to 2 replicas, and a fixed container_name is incompatible with
+    # that ("can't set container_name ... container name must be
+    # unique") - Compose would refuse to bring the prod stack up at all.
+    # nginx.conf and the Makefile already address it by service name
+    # (currency-analytics), which round-robins across replicas on its
+    # own, so nothing relied on the fixed name.
     restart: unless-stopped
     user: "0:0"
     ports:
       - "8002:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/analytics.db}
+      # DATABASE_URL / MODEL_PATH used to be set here, pointing at
+      # infrastructure (a Postgres DB, a model directory) that no code in
+      # this image actually reads - see src/core/config.py.
       - REDIS_URL=redis://172.17.0.1:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - CBR_API_URL=${CBR_API_URL:-https://www.cbr.ru/scripts/XML_daily.asp}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - MODEL_PATH=/app/models
       - DATA_PATH=/app/data
       - OLLAMA_HOST=${OLLAMA_HOST:-http://172.17.0.1:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      # tinyllama matches the app's own default (src/core/config.py,
+      # src/infrastructure/rag/llm/ollama_client.py) - was llama3.2:3b
+      # here, a third, different default from either of those.
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-tinyllama}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://172.17.0.1:11434}
       - USE_OLLAMA=${USE_OLLAMA:-True}
       - LLM_ENABLED=${LLM_ENABLED:-True}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
+      # Trained models are saved to "data/models" relative to the app's
+      # /app working directory (ModelTrainer's and ForecastService's
+      # shared default, in src/infrastructure/ml/trainers/trainer.py and
+      # src/application/services/forecast_service.py) - i.e. inside
+      # /app/data/models, not a separate /app/models. A "./models:/app/
+      # models" mount used to sit here too, pointed at a path the app
+      # never writes to, so trained models silently would not have
+      # persisted across a container recreate.
       - ./data:/app/data
-      - ./models:/app/models
       - ./logs:/app/logs
       - ./src:/app/src
     healthcheck:

@@ -28,8 +28,14 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8002
 
-    # --- Database / cache ---
-    DATABASE_URL: str = "sqlite:///./data/analytics.db"
+    # --- Cache ---
+    # There used to be a DATABASE_URL here too (and docker-compose.prod.yml
+    # pointed it at a Postgres service), but nothing in the codebase ever
+    # opened a connection with it - there is no SQL persistence layer, only
+    # this Redis cache and the A/B test module's own separate embedded
+    # SQLite file (src/ab_testing/ab_service.py, unrelated to this setting).
+    # Removed rather than left in place implying a feature that isn't
+    # there; see docker-compose.prod.yml for the matching cleanup.
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # --- Security (change these via .env in production — see .env.example) ---
@@ -40,7 +46,9 @@ class Settings(BaseSettings):
     CBR_API_URL: str = "https://www.cbr.ru/scripts/XML_daily.asp"
 
     # --- Paths ---
-    MODEL_PATH: str = "./models"
+    # MODEL_PATH used to live here too, but nothing read it - trainer.py
+    # and forecast_service.py both hardcode their own "data/models"
+    # default instead. Removed as dead, misleading configuration.
     DATA_PATH: str = "./data"
     DATA_DIR: str = "./data"  # used by the RAG vector store; kept distinct
     # from DATA_PATH in case the two are ever pointed at different

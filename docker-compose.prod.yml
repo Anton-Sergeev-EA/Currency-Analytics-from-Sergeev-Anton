@@ -1,12 +1,8 @@
-version: '3.8'
-
 services:
   currency-analytics:
     extends:
       file: docker-compose.yml
       service: currency-analytics
-    environment:
-      - DATABASE_URL=postgresql://analytics:${POSTGRES_PASSWORD}@db:5432/currency_analytics
     restart: always
     deploy:
       replicas: 2
@@ -14,13 +10,13 @@ services:
         parallelism: 1
         delay: 10s
 
-  db:
-    extends:
-      file: docker-compose.yml
-      service: db
-    environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    restart: always
+  # A "db" service used to be extended here (docker-compose.yml has never
+  # defined one, so `docker compose -f docker-compose.yml -f
+  # docker-compose.prod.yml config` failed outright with "service 'db'
+  # not found"), alongside a DATABASE_URL override pointing at it. Neither
+  # is needed: the app has no SQL persistence layer that reads
+  # DATABASE_URL (see src/core/config.py) - only Redis and the A/B test
+  # module's own separate embedded SQLite file.
 
   nginx:
     image: nginx:alpine

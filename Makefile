@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell clean deploy backup
+.PHONY: help build up down restart logs logs-app shell clean deploy backup status test
 
 # Цвета для вывода.
 GREEN=\033[0;32m
@@ -31,27 +31,27 @@ logs-app: ## Показать логи только приложения.
 shell: ## Зайти в shell приложения.
 	docker-compose exec currency-analytics /bin/bash
 
-shell-redis: ## Зайти в Redis CLI.
-	docker-compose exec redis redis-cli
-
-shell-db: ## Зайти в PostgreSQL.
-	docker-compose exec db psql -U $$POSTGRES_USER -d $$POSTGRES_DB
+# shell-redis / shell-db used to be here, exec-ing into "redis" and "db"
+# compose services. Neither service has ever existed in docker-compose.yml:
+# Redis runs outside Compose (REDIS_URL points at the host's
+# 172.17.0.1:6379) and there is no Postgres anywhere in this project - see
+# src/core/config.py and docker-compose.prod.yml for the matching cleanup.
+# Both targets always failed with "no such service".
 
 clean: ## Остановить и удалить все volumes.
 	docker-compose down -v
 	@echo "Все данные удалены."
 
-deploy: ## Развернуть в продакшене.
-	./deploy.sh
+deploy: ## Развернуть в продакшене (Docker Compose, prod overlay).
+	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 backup: ## Создать бэкап данных.
 	@mkdir -p backups
-	@tar -czf backups/backup_$$(date +%Y%m%d_%H%M%S).tar.gz data/ models/
+	@tar -czf backups/backup_$$(date +%Y%m%d_%H%M%S).tar.gz data/
 	@echo "Бэкап создан в backups/"
 
 status: ## Показать статус контейнеров.
 	docker-compose ps
 
-test: ## Запустить тесты (если есть).
-	docker-compose exec currency-analytics pytest tests/
-	
+test: ## Запустить тесты (pip install -r requirements-dev.txt first).
+	pytest tests/ -v

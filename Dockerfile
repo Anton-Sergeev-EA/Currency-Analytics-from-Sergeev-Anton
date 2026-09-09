@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY --chown=analytics:analytics . .
 
-RUN mkdir -p /app/data /app/models /app/logs && \
+RUN mkdir -p /app/data/models /app/logs && \
     chown -R analytics:analytics /app
 
 USER analytics
