@@ -1,6 +1,10 @@
 # Секреты и конфиги
 .env
 .env.*
+# .env.* above would also swallow the tracked, secret-free .env.example
+# template (README's Quick Start has always said to `cp .env.example
+# .env`, but the file itself was never committed - see .env.example).
+!.env.example
 *.key
 *.pem
 *.crt
