@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Compile check
+        run: python -m py_compile $(find src scripts tests -name '*.py') train_models.py
+
+      - name: Lint (unused imports / obvious errors)
+        run: python -m pyflakes src scripts tests train_models.py
+
+      - name: Test
+        run: pytest tests/ -v
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t currency-analytics:ci .
+
+      - name: Validate docker-compose configs
+        env:
+          SECRET_KEY: ci-placeholder
+          JWT_SECRET_KEY: ci-placeholder
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
