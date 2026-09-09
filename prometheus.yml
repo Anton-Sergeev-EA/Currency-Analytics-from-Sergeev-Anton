@@ -7,7 +7,10 @@ scrape_configs:
     static_configs:
       - targets: ['currency-analytics:8000']
     metrics_path: '/metrics'
-  
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
+
+  # A 'redis' job used to be listed here, but Redis isn't reachable at
+  # that name: it isn't a service in docker-compose.yml at all (the app
+  # talks to it at the host's 172.17.0.1:6379), and Redis doesn't expose
+  # a Prometheus /metrics endpoint on its own anyway - that needs the
+  # separate redis_exporter sidecar, which this project doesn't run.
+  # Removed rather than left in place scraping nothing.

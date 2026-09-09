@@ -1,11 +1,14 @@
-import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from src.core.config import settings
 from src.common.logger.logger import get_logger
+from src.common.prometheus_metrics import instrument as instrument_prometheus
 from src.presentation.api.routes import router as api_router
+from src.presentation.api.routes.admin import router as admin_router
+from src.presentation.api.routes.health import router as health_router
+from src.presentation.ab_testing.routes import router as ab_testing_router
 from src.presentation.routes import router as web_router
 from src.presentation.monitoring.routes import router as monitoring_router
 
@@ -35,7 +38,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Adds the request-count/duration middleware and GET /metrics that
+# prometheus.yml has been scraping this app for all along.
+instrument_prometheus(app)
+
 app.include_router(api_router, prefix="/api")
+# admin_router's own routes already hardcode the "/api" prefix (they are
+# relied on as-is by install.sh's cron jobs and by the dashboard's
+# refresh buttons), so it is mounted without an extra prefix here.
+app.include_router(admin_router)
+# health_router adds a JSON /api/health (distinct from the human-facing
+# HTML page at GET /health below), plus /api/ping and /api/health/verbose.
+app.include_router(health_router, prefix="/api")
+# Was built but never mounted, so GET /api/ab-test/status - the endpoint
+# the root response below advertises - 404'd.
+app.include_router(ab_testing_router, prefix="/api")
 app.include_router(web_router)
 app.include_router(monitoring_router)
 
