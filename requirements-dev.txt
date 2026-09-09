@@ -1,0 +1,13 @@
+# Test/lint-only dependencies - not installed in the production image
+# (Dockerfile only installs requirements.txt). Install with:
+#   pip install -r requirements.txt -r requirements-dev.txt
+-r requirements.txt
+
+pytest==8.3.4
+httpx==0.28.1
+pyflakes==3.2.0
+
+# Used only by scripts/run_ab_production.py, an ops smoke-test script
+# (hits a running server's /api/ab-test/* endpoints over HTTP) - it was
+# never listed anywhere despite the script hard-depending on it.
+requests==2.32.3
