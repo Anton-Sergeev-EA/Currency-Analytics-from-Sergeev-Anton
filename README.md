@@ -112,7 +112,7 @@ made specific endpoints unreachable before this pass.
 | GET | `/api/cache/status` | Cache backend status. |
 | GET | `/api/ab-test/status` \| `/predict` \| `/stats` \| POST `/update-ratios` | A/B-testing demo endpoints (mock data). |
 | GET | `/monitoring/dashboard` | Monitoring dashboard UI. |
-| GET | `/monitoring/api/health` \| `/models` \| `/current-rates` \| `/model-accuracy` \| `/prediction-test` \| `/data-quality` | Dashboard data feeds. Several of these (`model-accuracy`, `prediction-test`) return randomized illustrative numbers rather than a live model evaluation — they're marked as such in the code. |
+| GET | `/monitoring/api/health` \| `/models` \| `/current-rates` \| `/model-accuracy` \| `/prediction-test` \| `/data-quality` | Dashboard data feeds. `model-accuracy` is a real holdout backtest (time-based train/test split, cached for an hour since re-training on every 30s dashboard poll would be wasteful); `current-rates`, `prediction-test`, and `data-quality` all reflect real data too. |
 | GET | `/metrics` | Prometheus metrics. |
 | GET | `/docs`, `/redoc` | OpenAPI docs. |
 

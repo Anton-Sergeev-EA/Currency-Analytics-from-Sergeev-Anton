@@ -107,7 +107,7 @@ pytest tests/ -v
 | GET | `/api/cache/status` | Статус кэша. |
 | GET | `/api/ab-test/status` \| `/predict` \| `/stats`, POST `/update-ratios` | Демонстрационные эндпоинты A/B-теста (mock-данные). |
 | GET | `/monitoring/dashboard` | UI дашборда мониторинга. |
-| GET | `/monitoring/api/health` \| `/models` \| `/current-rates` \| `/model-accuracy` \| `/prediction-test` \| `/data-quality` | Данные для дашборда. Часть из них (`model-accuracy`, `prediction-test`) возвращает случайные иллюстративные значения, а не результат реальной оценки модели — это отмечено прямо в коде. |
+| GET | `/monitoring/api/health` \| `/models` \| `/current-rates` \| `/model-accuracy` \| `/prediction-test` \| `/data-quality` | Данные для дашборда. `model-accuracy` — настоящий бэктест на отложенной выборке (train/test-разбиение по времени, кешируется на час, т.к. переобучать модели на каждый 30-секундный опрос дашборда было бы расточительно); `current-rates`, `prediction-test` и `data-quality` тоже отражают реальные данные. |
 | GET | `/metrics` | Метрики Prometheus. |
 | GET | `/docs`, `/redoc` | Документация OpenAPI. |
 
