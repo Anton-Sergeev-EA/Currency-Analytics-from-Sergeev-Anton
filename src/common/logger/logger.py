@@ -5,6 +5,15 @@ from datetime import datetime
 from pathlib import Path
 
 
+# Attribute names a stock logging.LogRecord always carries. A caller's
+# `logger.info(msg, extra={...})` lands its entries directly on the
+# record as individual attributes (logging.Logger.makeRecord uses
+# setattr, it does not nest them under a `.extra` attribute) -- so
+# `hasattr(record, "extra")` below was always False and every `extra=`
+# a caller ever passed was silently dropped from the JSON log output.
+_STANDARD_RECORD_ATTRS = frozenset(vars(logging.makeLogRecord({})).keys())
+
+
 class CustomJSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
@@ -14,13 +23,20 @@ class CustomJSONFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
-        if hasattr(record, "extra"):
-            log_data.update(record.extra)
+        extra_attrs = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _STANDARD_RECORD_ATTRS
+        }
+        if extra_attrs:
+            log_data.update(extra_attrs)
 
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
 
-        return json.dumps(log_data)
+        # default=str: a log call must never raise for having passed a
+        # non-JSON-serializable value in `extra`.
+        return json.dumps(log_data, default=str)
 
 
 def setup_logging(log_level: str = "INFO"):
