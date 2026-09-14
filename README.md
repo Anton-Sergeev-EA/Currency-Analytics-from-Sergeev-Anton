@@ -103,10 +103,10 @@ made specific endpoints unreachable before this pass.
 | GET | `/health` | Human-readable health page. |
 | GET | `/api/health` | Machine-readable health check (JSON). |
 | GET | `/api/ping` | Liveness check. |
-| GET | `/api/data/data?period_days=N` | Historical exchange rates. |
-| GET | `/api/forecast/forecast?days=N&currency=USD\|EUR\|ALL` | ML forecast, 1-30 days. |
-| POST | `/api/rag/ask` | Ask the chat assistant a question. |
-| GET | `/api/stats/stats` | Current rates and day-over-day change. |
+| GET | `/api/data?period_days=N` | Historical exchange rates. |
+| GET | `/api/forecast?days=N&currency=USD\|EUR\|ALL` | ML forecast, 1-30 days. |
+| POST | `/api/ask` | Ask the chat assistant a question. |
+| GET | `/api/stats` | Current rates and day-over-day change. |
 | POST | `/api/refresh` | Trigger a background data refresh (used by the dashboard's "Refresh" button and by `install.sh`'s cron jobs). |
 | POST | `/api/force-refresh` | Force a synchronous data refresh, bypassing cache. |
 | GET | `/api/cache/status` | Cache backend status. |
@@ -120,15 +120,15 @@ made specific endpoints unreachable before this pass.
 
 ```bash
 # 7-day USD forecast
-curl "http://localhost:8002/api/forecast/forecast?days=7&currency=USD"
+curl "http://localhost:8002/api/forecast?days=7&currency=USD"
 
 # Ask the assistant
-curl -X POST http://localhost:8002/api/rag/ask \
+curl -X POST http://localhost:8002/api/ask \
   -H "Content-Type: application/json" \
   -d '{"question": "Какой прогноз по доллару на следующую неделю?"}'
 
 # Historical data
-curl "http://localhost:8002/api/data/data?period_days=30"
+curl "http://localhost:8002/api/data?period_days=30"
 ```
 
 ### Example questions for the assistant

@@ -98,10 +98,10 @@ pytest tests/ -v
 | GET | `/health` | Человекочитаемая страница проверки здоровья. |
 | GET | `/api/health` | Машиночитаемая проверка здоровья (JSON). |
 | GET | `/api/ping` | Проверка доступности. |
-| GET | `/api/data/data?period_days=N` | Исторические курсы валют. |
-| GET | `/api/forecast/forecast?days=N&currency=USD\|EUR\|ALL` | ML-прогноз на 1-30 дней. |
-| POST | `/api/rag/ask` | Задать вопрос ассистенту. |
-| GET | `/api/stats/stats` | Текущие курсы и изменение за день. |
+| GET | `/api/data?period_days=N` | Исторические курсы валют. |
+| GET | `/api/forecast?days=N&currency=USD\|EUR\|ALL` | ML-прогноз на 1-30 дней. |
+| POST | `/api/ask` | Задать вопрос ассистенту. |
+| GET | `/api/stats` | Текущие курсы и изменение за день. |
 | POST | `/api/refresh` | Фоновое обновление данных (используется кнопкой "Обновить" на дашборде и cron-задачами `install.sh`). |
 | POST | `/api/force-refresh` | Синхронное принудительное обновление данных, минуя кэш. |
 | GET | `/api/cache/status` | Статус кэша. |
@@ -115,15 +115,15 @@ pytest tests/ -v
 
 ```bash
 # Прогноз USD на 7 дней
-curl "http://localhost:8002/api/forecast/forecast?days=7&currency=USD"
+curl "http://localhost:8002/api/forecast?days=7&currency=USD"
 
 # Вопрос ассистенту
-curl -X POST http://localhost:8002/api/rag/ask \
+curl -X POST http://localhost:8002/api/ask \
   -H "Content-Type: application/json" \
   -d '{"question": "Какой прогноз по доллару на следующую неделю?"}'
 
 # Исторические данные
-curl "http://localhost:8002/api/data/data?period_days=30"
+curl "http://localhost:8002/api/data?period_days=30"
 ```
 
 ### Примеры вопросов для ассистента

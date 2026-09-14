@@ -24,8 +24,11 @@ hypothetical one; each test below is a regression test pinned to that bug:
   an unexpected keyword argument 'refresh'` from inside its background
   task, because DataService.get_historical_data() had no `refresh`
   parameter at all.
-- POST /api/rag/ask used to be reachable only at the accidental
-  double-prefixed /api/rag/api/ask.
+- POST /api/ask (RAG question-answering) used to be reachable only at
+  the double-prefixed /api/rag/ask, and GET /api/data, /api/forecast and
+  /api/stats only at /api/data/data, /api/forecast/forecast and
+  /api/stats/stats, because each sub-router's own path was prefixed a
+  second time when it was mounted onto the /api aggregator.
 """
 from fastapi.testclient import TestClient
 
@@ -95,7 +98,7 @@ def test_metrics_endpoint():
 
 
 def test_data_and_forecast_and_stats_endpoints_respond():
-    for path in ("/api/data/data", "/api/forecast/forecast?days=1", "/api/stats/stats"):
+    for path in ("/api/data", "/api/forecast?days=1", "/api/stats"):
         resp = client.get(path)
         assert resp.status_code == 200, f"{path} -> {resp.status_code}: {resp.text}"
 
@@ -103,7 +106,7 @@ def test_data_and_forecast_and_stats_endpoints_respond():
 def test_rag_ask_endpoint_greeting():
     # A greeting short-circuits before any Ollama call, so this stays
     # fast and network-free.
-    resp = client.post("/api/rag/ask", json={"question": "Привет!"})
+    resp = client.post("/api/ask", json={"question": "Привет!"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["type"] == "greeting"
