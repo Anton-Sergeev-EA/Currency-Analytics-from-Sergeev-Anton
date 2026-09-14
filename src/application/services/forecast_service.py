@@ -71,7 +71,7 @@ class ForecastService:
                     df_features = self.feature_engineer.create_features(curr_df)
                     feature_cols = [c for c in df_features.columns if c not in ["date", "usd_rate", "eur_rate"]]
                     last_row = df_features[feature_cols].iloc[[-1]]
-                    mean_pred, lower, upper = model.predict(last_row)
+                    mean_pred, (lower, upper) = model.predict_with_uncertainty(last_row)
 
                     pred_val = round(float(mean_pred[0]), 2)
                     low_val = round(float(lower[0]), 2)
