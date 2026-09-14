@@ -266,7 +266,9 @@
 
     async function loadForecast() {
         try {
-            const resp = await fetch('/api/forecast?days=7&currency=ALL');
+            // currency=ALL возвращает объект {usd:[...], eur:[...]}, а не массив -
+            // updateForecastTable() ниже ожидает именно массив по одной валюте.
+            const resp = await fetch('/api/forecast?days=7&currency=USD');
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             return await resp.json();
         } catch (e) {
