@@ -5,6 +5,12 @@
 # template (README's Quick Start has always said to `cp .env.example
 # .env`, but the file itself was never committed - see .env.example).
 !.env.example
+# *.env (not just .env/.env.*) also catches production.env, which
+# holds the real deployment secrets and was previously listed
+# explicitly for exactly that reason -- broadened so a differently
+# named env file (staging.env, local.env, ...) doesn't slip through.
+*.env
+deploy.sh
 *.key
 *.pem
 *.crt
@@ -47,5 +53,9 @@ __pycache__/
 *.save
 *.backup
 
-# Docker
+# Python virtual environments
 .venv/
+venv/
+venv312/
+env/
+ENV/
