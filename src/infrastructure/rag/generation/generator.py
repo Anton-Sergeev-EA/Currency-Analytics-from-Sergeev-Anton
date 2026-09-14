@@ -1,4 +1,5 @@
 import logging
+import re
 
 import aiohttp
 
@@ -54,8 +55,11 @@ class ResponseGenerator:
             answer = answer.replace(marker, "")
         answer = answer.strip()
 
-        sentences = answer.split(".")
+        # Режем на предложения по точке, которая НЕ является десятичным
+        # разделителем (не за ней сразу цифра) - иначе "0.24 руб." рвётся
+        # прямо посередине числа и ответ обрывается на полуслове.
+        sentences = re.split(r"\.(?!\d)", answer)
         if len(sentences) > 3:
-            answer = ".".join(sentences[:3]) + "."
+            answer = ".".join(s for s in sentences[:3] if s.strip()) + "."
 
-        return answer
+        return answer.strip()

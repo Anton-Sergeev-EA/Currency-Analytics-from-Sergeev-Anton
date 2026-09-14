@@ -28,10 +28,10 @@ class RAGService:
 
     Ответ модели никогда не возвращается пользователю "как есть": он
     проверяется в _is_usable() и, если похож на галлюцинацию, обрыв
-    промпта или ответ про не ту валюту, заменяется на детерминированный
-    ответ, посчитанный напрямую из реальных данных/прогноза. Так
-    неустойчивая маленькая LLM-модель не может показать пользователю
-    в чате неправильный курс или валюту.
+    промпта, ответ про не ту валюту или выдуманные цифры, заменяется на
+    детерминированный ответ, посчитанный напрямую из реальных
+    данных/прогноза. Так неустойчивая маленькая LLM-модель не может
+    показать пользователю в чате неправильный курс или валюту.
     """
 
     def __init__(self):
@@ -78,7 +78,7 @@ class RAGService:
             except Exception as e:
                 logger.warning(f"Ollama generation failed, falling back to computed answer: {e}")
 
-            if self._is_usable(llm_answer, asked_currencies):
+            if self._is_usable(llm_answer, asked_currencies, facts):
                 return {"answer": llm_answer.strip(), "type": "ollama"}
 
             return {"answer": deterministic_answer, "type": "forecast"}
@@ -163,9 +163,15 @@ class RAGService:
         return "\n".join(lines)
 
     @staticmethod
-    def _is_usable(answer: Optional[str], asked_currencies: List[str]) -> bool:
+    def _is_usable(
+        answer: Optional[str],
+        asked_currencies: List[str],
+        facts: Dict[str, Dict[str, Any]],
+    ) -> bool:
         """Отбрасывает ответы модели, которые похожи на обрыв промпта,
-        повтор одной фразы или ответ не про ту валюту, которую спросили."""
+        повтор одной фразы, ответ не про ту валюту, которую спросили,
+        или называют курс, никак не похожий на реальные цифры (маленькая
+        модель на слабом сервере иногда выдумывает числа)."""
         if not isinstance(answer, str):
             return False
 
@@ -190,6 +196,9 @@ class RAGService:
             if not target_mentioned or (other_mentioned and not target_mentioned):
                 return False
 
+        if not RAGService._numbers_are_plausible(text, asked_currencies, facts):
+            return False
+
         return True
 
     @staticmethod
@@ -197,3 +206,47 @@ class RAGService:
         if curr == "eur_rate":
             return bool(re.search(r"евро|eur", text_lower))
         return bool(re.search(r"доллар|usd", text_lower))
+
+    @staticmethod
+    def _extract_numbers(text: str) -> List[float]:
+        """Числа из текста ответа, с поддержкой и точки, и запятой как
+        десятичного разделителя (модель использует оба варианта)."""
+        numbers = []
+        for raw in re.findall(r"\d+[.,]\d+|\d+", text):
+            try:
+                numbers.append(float(raw.replace(",", ".")))
+            except ValueError:
+                continue
+        return numbers
+
+    @staticmethod
+    def _numbers_are_plausible(
+        text: str, asked_currencies: List[str], facts: Dict[str, Dict[str, Any]]
+    ) -> bool:
+        """Проверяет, что курсы, которые называет модель, похожи на
+        реальные (в пределах 20% от известных нам значений). Не блокирует
+        ответ, если в нём вообще нет чисел похожих на курс валюты -
+        такие тексты просто ничего не утверждают о конкретной цифре."""
+        reference_values = [
+            float(f[key])
+            for curr in asked_currencies
+            for f in (facts.get(curr),)
+            if f
+            for key in ("current", "day1", "day7")
+            if f.get(key) is not None
+        ]
+        if not reference_values:
+            return True
+
+        # Малые числа ("1 день", "7 дней", номера пунктов) не являются
+        # курсом валюты и не должны участвовать в проверке.
+        mentioned = [n for n in RAGService._extract_numbers(text) if n > 10]
+        if not mentioned:
+            return True
+
+        tolerance = 0.2
+        return any(
+            abs(n - ref) / ref <= tolerance
+            for n in mentioned
+            for ref in reference_values
+        )
