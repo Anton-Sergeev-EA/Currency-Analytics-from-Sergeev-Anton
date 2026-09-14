@@ -22,16 +22,19 @@ _META_LEAK_MARKERS = (
     "данные:",
 )
 
+_MIN_CYRILLIC_RATIO = 0.6
+
 
 class RAGService:
     """Сервис обработки вопросов с привлечением RAG и Ollama.
 
     Ответ модели никогда не возвращается пользователю "как есть": он
     проверяется в _is_usable() и, если похож на галлюцинацию, обрыв
-    промпта, ответ про не ту валюту или выдуманные цифры, заменяется на
-    детерминированный ответ, посчитанный напрямую из реальных
-    данных/прогноза. Так неустойчивая маленькая LLM-модель не может
-    показать пользователю в чате неправильный курс или валюту.
+    промпта, ответ не про ту валюту, выдуманные цифры или вообще не на
+    русском языке, заменяется на детерминированный ответ, посчитанный
+    напрямую из реальных данных/прогноза. Так неустойчивая маленькая
+    LLM-модель не может показать пользователю в чате неправильный курс,
+    валюту или ответ не на том языке.
     """
 
     def __init__(self):
@@ -170,8 +173,8 @@ class RAGService:
     ) -> bool:
         """Отбрасывает ответы модели, которые похожи на обрыв промпта,
         повтор одной фразы, ответ не про ту валюту, которую спросили,
-        или называют курс, никак не похожий на реальные цифры (маленькая
-        модель на слабом сервере иногда выдумывает числа)."""
+        называют курс, никак не похожий на реальные цифры, или выданы
+        не на русском языке."""
         if not isinstance(answer, str):
             return False
 
@@ -193,10 +196,16 @@ class RAGService:
             other = "eur_rate" if curr == "usd_rate" else "usd_rate"
             target_mentioned = RAGService._mentions_currency(text_lower, curr)
             other_mentioned = RAGService._mentions_currency(text_lower, other)
-            if not target_mentioned or (other_mentioned and not target_mentioned):
+            # Спросили конкретно про одну валюту - ответ не должен ни
+            # молчать про неё, ни притягивать данные другой валюты
+            # (модель наблюдалась смешивающей обе в одном ответе).
+            if not target_mentioned or other_mentioned:
                 return False
 
         if not RAGService._numbers_are_plausible(text, asked_currencies, facts):
+            return False
+
+        if not RAGService._is_mostly_russian(text):
             return False
 
         return True
@@ -250,3 +259,14 @@ class RAGService:
             for n in mentioned
             for ref in reference_values
         )
+
+    @staticmethod
+    def _is_mostly_russian(text: str) -> bool:
+        """tinyllama иногда полностью игнорирует инструкцию отвечать на
+        русском и отвечает на английском - такой ответ пользователю не
+        подходит, даже если по цифрам он верный."""
+        letters = [c for c in text if c.isalpha()]
+        if not letters:
+            return True
+        cyrillic = sum(1 for c in letters if "а" <= c.lower() <= "я" or c.lower() == "ё")
+        return (cyrillic / len(letters)) >= _MIN_CYRILLIC_RATIO
