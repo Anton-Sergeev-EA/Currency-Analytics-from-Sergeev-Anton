@@ -48,14 +48,14 @@
     </div>
 
     <div class="card">
-        <h3>📊 История предсказаний</h3>
+        <h3>📊 Прогноз на 1 день вперёд (USD, EUR)</h3>
         <div class="chart-container">
             <canvas id="predictionChart"></canvas>
         </div>
     </div>
 
     <div class="card">
-        <h3>📉 Метрики качества предсказаний</h3>
+        <h3>📉 Метрики качества предсказаний (USD)</h3>
         <div id="metrics">Загрузка...</div>
     </div>
 
@@ -64,13 +64,28 @@
 
         async function loadData() {
             try {
-                // Health
+                // Health - реальный статус (раньше здесь всегда писалось
+                // "Здоров" независимо от содержимого ответа).
                 const health = await fetch('/monitoring/api/health').then(r => r.json());
-                document.getElementById('health').innerHTML = `<span class="status-ok">✅ Здоров</span>`;
+                const healthLabel = health.status === 'healthy' ? '✅ Здоров'
+                    : health.status === 'degraded' ? '⚠️ Есть проблемы'
+                    : '❌ Не работает';
+                const healthClass = health.status === 'healthy' ? 'good'
+                    : health.status === 'degraded' ? 'medium' : 'bad';
+                const componentsLine = Object.entries(health.components)
+                    .map(([k, v]) => `${k}: ${v}`).join(', ');
+                document.getElementById('health').innerHTML = `
+                    <span class="${healthClass}">${healthLabel}</span><br>
+                    <small style="color:#718096">${componentsLine}</small>
+                `;
 
-                // Models
+                // Models - реально ли на диске файл модели для каждой валюты
+                // (раньше здесь просто перечислялись ключи из статического
+                // словаря "loaded: true", не проверяя ничего на самом деле).
                 const models = await fetch('/monitoring/api/models').then(r => r.json());
-                document.getElementById('models').innerHTML = Object.keys(models.models).join(', ');
+                document.getElementById('models').innerHTML = Object.entries(models.models)
+                    .map(([key, info]) => `${key.toUpperCase()}: ${info.loaded ? '✅' : '⚠️'} ${info.type}`)
+                    .join('<br>');
 
                 // Rates
                 const rates = await fetch('/monitoring/api/current-rates').then(r => r.json());

@@ -37,6 +37,20 @@ cache = CacheManager()
 MODEL_ACCURACY_CACHE_KEY = "monitoring_model_accuracy_v1"
 MODEL_ACCURACY_TTL_SECONDS = 3600  # backtest re-trains models -- too heavy to redo on every 30s dashboard poll
 
+_MODEL_TARGETS = (("usd", "usd_rate"), ("eur", "eur_rate"))
+
+
+def _model_file_status() -> Dict[str, bool]:
+    """Реально ли на диске лежит файл обученной модели для каждой валюты
+    (а не просто предположение, что модели загружены)."""
+    models_dir = Path(forecast_service.models_dir)
+    status = {}
+    for key, target in _MODEL_TARGETS:
+        model_path = models_dir / f"{target}_model.joblib"
+        alt_path = models_dir / f"{key}_model.joblib"
+        status[key] = model_path.exists() or alt_path.exists()
+    return status
+
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
@@ -47,18 +61,63 @@ async def dashboard_page(request: Request):
 
 @router.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "components": {"api": "ok", "models": "loaded"}}
+    """
+    Реальная проверка состояния системы (раньше здесь был жёстко
+    прописанный ответ "healthy"/"ok"/"loaded", никогда не отражавший
+    ничего реального - фронтенд даже не читал содержимое ответа).
+
+    Проверяем: доступны ли исторические данные (без них прогноз вообще
+    не построить), в каком режиме работает кэш (настоящий Redis или
+    его in-memory заглушка на этот процесс), и есть ли на диске файлы
+    обученных ML-моделей (без них форкаст-сервис тихо переключается на
+    статистический трендовый fallback - не авария, но и не то же самое,
+    что "модель загружена").
+    """
+    components: Dict[str, str] = {"api": "ok"}
+
+    if cache.redis is not None and cache.is_healthy():
+        components["cache"] = "ok"
+    elif cache.is_healthy():
+        components["cache"] = "degraded"  # работает, но через in-memory fallback без Redis
+    else:
+        components["cache"] = "error"
+
+    try:
+        df = await loader.load_data()
+        components["data"] = "ok" if df is not None and not df.empty else "error"
+    except Exception as exc:
+        logger.warning(f"Health check: data source unavailable: {exc}")
+        components["data"] = "error"
+
+    model_status = _model_file_status()
+    components["models"] = "ok" if all(model_status.values()) else "degraded"
+
+    if components["data"] == "error":
+        overall = "unhealthy"
+    elif "error" in components.values() or "degraded" in components.values():
+        overall = "degraded"
+    else:
+        overall = "healthy"
+
+    return {"status": overall, "components": components}
 
 
 @router.get("/api/models")
 async def models_info():
-    return {
-        "models": {
-            "usd": {"loaded": True, "type": "Ensemble (RF, GB, LGB, XGB)"},
-            "eur": {"loaded": True, "type": "Ensemble (RF, GB, LGB, XGB)"}
-        },
-        "status": "success"
+    """Реальный статус ML-моделей: файл на диске либо есть, либо нет
+    (раньше это был статический словарь с loaded=True для обеих валют
+    независимо от того, существуют ли файлы .joblib)."""
+    model_status = _model_file_status()
+    models = {
+        key: {
+            "loaded": loaded,
+            "type": "Ensemble (RF, GB, LGB, XGB, Ridge)"
+            if loaded
+            else "модель не найдена - используется статистический трендовый fallback",
+        }
+        for key, loaded in model_status.items()
     }
+    return {"models": models, "status": "success"}
 
 
 @router.get("/api/current-rates")
