@@ -35,7 +35,10 @@ dashboard, and a small A/B-testing API.
 **Backend:** Python 3.10+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy
 (A/B-test log storage only), Redis, aiohttp.
 **ML:** LightGBM, XGBoost, scikit-learn, pandas, NumPy.
-**AI/RAG:** Ollama (local LLM), Sentence-Transformers, ChromaDB.
+**AI/RAG:** Ollama (local LLM) only -- the RAG context is built directly
+from the current rate data and forecast, not a vector store; an
+unused Sentence-Transformers/ChromaDB/OpenAI pipeline that nothing
+ever called has been removed (see CHANGELOG).
 **Frontend:** vanilla HTML/CSS/JS + Chart.js — no frontend framework.
 **Infra:** Docker, Docker Compose, Prometheus, Grafana, nginx (prod).
 
@@ -154,7 +157,7 @@ Currency-Analytics-from-Sergeev-Anton/
 │   ├── infrastructure/
 │   │   ├── data/             # CBR data loading + Redis/in-memory cache.
 │   │   ├── ml/                # Feature engineering, ensemble model, training.
-│   │   └── rag/                # Ollama client, vector store, knowledge base.
+│   │   └── rag/                # Ollama response generation.
 │   ├── presentation/
 │   │   ├── api/routes/        # /api/* routers.
 │   │   ├── ab_testing/        # /api/ab-test/* router (mock data).

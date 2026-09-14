@@ -29,7 +29,10 @@ RAG-ассистента на локальной модели Ollama, интер
 **Backend:** Python 3.10+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy
 (только для лога A/B-теста), Redis, aiohttp.
 **ML:** LightGBM, XGBoost, scikit-learn, pandas, NumPy.
-**AI/RAG:** Ollama (локальная LLM), Sentence-Transformers, ChromaDB.
+**AI/RAG:** только Ollama (локальная LLM) -- контекст для ответа строится
+напрямую из текущих данных и прогноза, без векторного хранилища;
+неиспользуемый стек Sentence-Transformers/ChromaDB/OpenAI, который
+никто и никогда не вызывал, удалён (см. CHANGELOG).
 **Frontend:** обычные HTML/CSS/JS + Chart.js, без фреймворка.
 **Инфраструктура:** Docker, Docker Compose, Prometheus, Grafana, nginx (прод).
 
