@@ -27,6 +27,8 @@ dashboard, and a small A/B-testing API.
 - A demo A/B-testing API (`/api/ab-test/*`) — currently fixed mock
   responses, not wired to live traffic splitting.
 - Prometheus metrics (`/metrics`) and a Grafana/Prometheus Compose profile.
+- Optional MLflow experiment tracking for model training and backtest
+  accuracy (off by default; see "ML experiment tracking" below).
 - Structured JSON logging.
 - A pytest smoke-test suite and GitHub Actions CI.
 
@@ -40,7 +42,7 @@ from the current rate data and forecast, not a vector store; an
 unused Sentence-Transformers/ChromaDB/OpenAI pipeline that nothing
 ever called has been removed (see CHANGELOG).
 **Frontend:** vanilla HTML/CSS/JS + Chart.js — no frontend framework.
-**Infra:** Docker, Docker Compose, Prometheus, Grafana, nginx (prod).
+**Infra:** Docker, Docker Compose, Prometheus, Grafana, nginx (prod), MLflow (optional, model tracking).
 
 ## Quick start (Docker)
 
@@ -94,6 +96,31 @@ The suite runs fully offline (no live CBR or Ollama calls needed) and is
 what CI runs on every push. See `tests/test_app.py`'s module docstring for
 what each test guards against — several are regression tests for bugs that
 made specific endpoints unreachable before this pass.
+
+## ML experiment tracking (MLflow, optional)
+
+Off by default (`USE_MLFLOW=False` in `.env`) — no MLflow server is
+required to run the app. When you do have an MLflow tracking server
+(e.g. `mlflow server --host 0.0.0.0 --port 5000`), point the app at it:
+
+```bash
+USE_MLFLOW=True
+MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+MLFLOW_EXPERIMENT_NAME=currency-forecast
+```
+
+Two things get logged as MLflow runs, both through a fail-safe wrapper
+(`src/infrastructure/monitoring/mlflow_tracker.py`) that never raises —
+if the tracking server is unreachable, a run is skipped and a warning is
+logged, nothing else changes:
+
+- `train-{usd,eur}_rate` — logged by `train_models.py` on every retrain:
+  row count, feature count, each base model's ensemble weight, and the
+  saved `.joblib` file as an artifact.
+- `backtest-{usd,eur}` — logged by `/monitoring/api/model-accuracy`
+  whenever it recomputes the real holdout backtest (see the API
+  reference below; cached for an hour, so at most one new run per hour
+  per currency): real RMSE/MAE/MAPE/R² on the time-based test split.
 
 ## API reference
 
