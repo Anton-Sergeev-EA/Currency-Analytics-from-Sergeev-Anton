@@ -83,6 +83,8 @@ class DataLoader:
         if cached_data is not None:
             try:
                 df = pd.DataFrame(cached_data)
+                if "date" in df.columns:
+                    df["date"] = pd.to_datetime(df["date"])
                 if len(df) > 0:
                     logger.info(f"Returning cached data for {days} days")
                     return df

@@ -70,7 +70,7 @@ class CacheManager:
     def set(self, key: str, value: Any, ttl_seconds: int = 600) -> None:
         if self.redis is not None:
             try:
-                self.redis.setex(key, ttl_seconds, json.dumps(value))
+                self.redis.setex(key, ttl_seconds, json.dumps(value, default=str))
                 return
             except Exception as exc:
                 logger.warning("CacheManager.set: Redis error for key=%s: %s", key, exc)
