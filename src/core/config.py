@@ -69,6 +69,15 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "tinyllama"
     LLM_ENABLED: bool = True
 
+    # --- MLflow (трекинг качества ML-моделей) ---
+    # Выключено по умолчанию: в песочницах/локальной разработке сервера
+    # MLflow нет, а mlflow_tracker.py и без этого флага безопасен (просто
+    # ничего не логирует), но явный флаг избавляет от попытки соединения
+    # там, где сервера заведомо нет.
+    USE_MLFLOW: bool = False
+    MLFLOW_TRACKING_URI: str = "http://127.0.0.1:5000"
+    MLFLOW_EXPERIMENT_NAME: str = "currency-forecast"
+
 
 @lru_cache()
 def get_settings() -> Settings:

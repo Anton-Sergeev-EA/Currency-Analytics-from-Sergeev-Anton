@@ -19,6 +19,7 @@ from src.infrastructure.data.cache import CacheManager
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.features.engineer import FeatureEngineer
 from src.infrastructure.ml.models.ensemble import EnsembleModel
+from src.infrastructure.monitoring.mlflow_tracker import log_run
 from src.common.logger.logger import get_logger
 
 logger = get_logger(__name__)
@@ -188,12 +189,23 @@ async def _compute_real_model_accuracy() -> Dict[str, Any]:
         r2 = float(r2_score(y_true, y_pred))
 
         key = target.replace("_rate", "")
-        results[key] = {
+        metrics = {
             "rmse": round(rmse, 4),
             "mae": round(mae, 4),
             "mape": round(mape, 2),
             "r2": round(r2, 4),
         }
+        results[key] = metrics
+
+        # Настоящая метрика качества модели на отложенной выборке - это
+        # то, что действительно нужно отслеживать в MLflow во времени
+        # (раз в час, из-за кеша ниже), в отличие от параметров обучения,
+        # которые логирует trainer.py.
+        log_run(
+            run_name=f"backtest-{key}",
+            params={"target": target, "train_rows": len(train_df), "test_rows": len(test_df)},
+            metrics=metrics,
+        )
 
     return results
 

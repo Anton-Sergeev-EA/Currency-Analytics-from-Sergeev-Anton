@@ -4,6 +4,7 @@ from typing import Dict
 from src.common.logger.logger import get_logger
 from src.infrastructure.ml.models.ensemble import EnsembleModel
 from src.infrastructure.ml.features.engineer import FeatureEngineer
+from src.infrastructure.monitoring.mlflow_tracker import log_run
 
 logger = get_logger(__name__)
 
@@ -49,6 +50,24 @@ class ModelTrainer:
             save_path = os.path.join(self.models_dir, f"{target}_model.joblib")
             model.save(save_path)
             logger.info(f"Model for {target} successfully saved to {save_path}")
+
+            # Фиксируем в MLflow сам факт обучения новой версии модели:
+            # сколько строк использовано и какие веса получил каждый
+            # базовый алгоритм в ансамбле, плюс сам файл модели как
+            # артефакт. Реальная оценка качества (RMSE/MAE/MAPE/R² на
+            # отложенной выборке) логируется отдельно в мониторинге
+            # (_compute_real_model_accuracy) - здесь её нет, потому что
+            # train_all() обучает на всех данных без holdout.
+            log_run(
+                run_name=f"train-{target}",
+                params={
+                    "target": target,
+                    "train_rows": len(clean_df),
+                    "feature_count": len(feature_cols),
+                    **{f"weight_{name}": round(w, 4) for name, w in model.weights.items()},
+                },
+                artifact_path=save_path,
+            )
 
             trained_models[target] = model
 

@@ -104,6 +104,13 @@ class EnsembleModel:
         self._residuals: Optional[np.ndarray] = None
         self._fitted = False
 
+    @property
+    def weights(self) -> dict[str, float]:
+        """Текущие веса ансамбля (равные до fit(), взвешенные по обратной
+        ошибке после) - публично, чтобы вызывающий код (например, логирование
+        обучения в MLflow) не лез в приватный _weights."""
+        return dict(self._weights)
+
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "EnsembleModel":
         logger.info("Fitting ensemble (%d base models) on %d rows", len(self._models), len(X))
         self._feature_columns = list(X.columns)
