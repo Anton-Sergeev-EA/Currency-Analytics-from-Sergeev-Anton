@@ -152,7 +152,7 @@
         <div class="stat-card">
             <div class="label">Волатильность USD</div>
             <div class="value" id="usdVol">--</div>
-            <div class="change">Стандартное отклонение</div>
+            <div class="change">Дневных изменений за 30 дней, %</div>
         </div>
     </div>
 
@@ -299,7 +299,7 @@
                 document.getElementById('eurChange').textContent = 'Официальный курс ЦБ';
                 document.getElementById('dataPeriod').textContent = stats.total_records + ' дн.';
                 document.getElementById('dataRange').textContent = 'Актуально на ' + new Date().toLocaleDateString();
-                document.getElementById('usdVol').textContent = '0.00';
+                document.getElementById('usdVol').textContent = (typeof stats.usd_volatility === 'number' ? stats.usd_volatility.toFixed(2) : '0.00');
             }
         } catch (e) {
             console.error('Update UI error:', e);

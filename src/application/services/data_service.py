@@ -67,10 +67,34 @@ class DataService:
         usd_prev = float(df["usd_rate"].iloc[-2]) if len(df) > 1 and "usd_rate" in df.columns else usd_curr
         eur_prev = float(df["eur_rate"].iloc[-2]) if len(df) > 1 and "eur_rate" in df.columns else eur_curr
 
+        usd_volatility = self._daily_volatility_pct(df, "usd_rate")
+        eur_volatility = self._daily_volatility_pct(df, "eur_rate")
+
         return {
             "usd_current": round(usd_curr, 2),
             "usd_change": round(usd_curr - usd_prev, 2),
             "eur_current": round(eur_curr, 2),
             "eur_change": round(eur_curr - eur_prev, 2),
-            "total_records": len(df)
+            "total_records": len(df),
+            "usd_volatility": usd_volatility,
+            "eur_volatility": eur_volatility
         }
+
+    @staticmethod
+    def _daily_volatility_pct(df, column: str, window_days: int = 30) -> float:
+        """
+        Стандартное отклонение дневных изменений курса (в процентах) за
+        последние `window_days` дней - стандартная мера волатильности.
+        Считается по последним записям, а не по всей истории, чтобы
+        отражать актуальную картину, а не быть "размазанной" долгосрочным
+        трендом.
+        """
+        if column not in df.columns or len(df) < 3:
+            return 0.0
+
+        recent = df[column].tail(window_days + 1)
+        daily_returns_pct = recent.pct_change().dropna() * 100
+        if daily_returns_pct.empty:
+            return 0.0
+
+        return round(float(daily_returns_pct.std()), 2)
