@@ -15,11 +15,13 @@ async def ask_question(request: AskRequest):
         return AskResponse(
             answer=response,
             type="general",
-            confidence=1.0
+            confidence=1.0,
+            sources=[],
         )
 
     return AskResponse(
         answer=response.get("answer", str(response)),
         type=response.get("type", "general"),
-        confidence=response.get("confidence", 1.0)
+        confidence=response.get("confidence", 1.0),
+        sources=response.get("sources", []),
     )

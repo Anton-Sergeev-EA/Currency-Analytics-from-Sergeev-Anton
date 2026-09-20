@@ -5,8 +5,12 @@ from datetime import datetime
 
 class AskResponse(BaseModel):
     answer: str = Field(..., description="Generated answer")
-    type: str = Field(..., description="Response type: forecast, profit, comparison, general")
+    type: str = Field(..., description="Response type: greeting, forecast, investment, comparison, general, error")
     confidence: Optional[float] = Field(None, ge=0, le=1, description="Confidence score")
+    sources: List[str] = Field(
+        default_factory=list,
+        description="Knowledge-base documents retrieved and used to ground this answer (real RAG retrieval, not just an LLM guess)",
+    )
     timestamp: datetime = Field(default_factory=datetime.now)
 
     model_config = ConfigDict(
@@ -15,6 +19,7 @@ class AskResponse(BaseModel):
                 "answer": "Прогноз USD:\nТекущий: 75.23 RUB\nЧерез 30 дней: 76.12 RUB",
                 "type": "forecast",
                 "confidence": 0.8,
+                "sources": ["cbr_current", "stats_usd"],
                 "timestamp": "2026-01-13T12:00:00"
             }
         }
