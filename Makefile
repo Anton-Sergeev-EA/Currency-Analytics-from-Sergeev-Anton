@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs logs-app shell clean deploy backup status test
+.PHONY: help build up down restart logs logs-app shell clean deploy backup status test ab-refresh
 
 # Цвета для вывода.
 GREEN=\033[0;32m
@@ -55,3 +55,6 @@ status: ## Показать статус контейнеров.
 
 test: ## Запустить тесты (pip install -r requirements-dev.txt first).
 	pytest tests/ -v
+
+ab-refresh: ## Обновить фактические курсы и метрики A/B-теста.
+	python scripts/update_ab_actual_rates.py

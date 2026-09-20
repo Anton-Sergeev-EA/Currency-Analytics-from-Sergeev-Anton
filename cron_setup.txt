@@ -19,3 +19,7 @@
 
 # Очистка логов раз в неделю (воскресенье в 00:00)
 0 0 * * 0 find /root/currency-analyzer/logs -name "*.log" -mtime +30 -delete 2>/dev/null
+
+# A/B-тест: подтянуть фактические курсы для прогнозов с наступившей
+# датой и пересчитать MAE/MAPE (раз в день в 23:50 достаточно).
+50 23 * * * cd /root/currency-analyzer && /root/currency-analyzer/venv/bin/python scripts/update_ab_actual_rates.py >> logs/cron_ab_refresh.log 2>&1

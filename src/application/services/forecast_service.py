@@ -25,6 +25,54 @@ class ForecastService:
         """Метод для RAG-ассистента и API."""
         return await self._generate_forecast(days=days, currency=currency)
 
+    async def get_persistence_baseline(self, days: int = 7, currency: str = "usd_rate") -> List[Dict[str, Any]]:
+        """
+        "Наивный" прогноз (persistence / random-walk): курс не меняется.
+
+        Это стандартный бенчмарк в прогнозировании валютных курсов —
+        курсы FX statistically близки к случайному блужданию, поэтому
+        "завтра = сегодня" на коротких горизонтах на удивление сложно
+        обыграть. Используется как контрольная группа B в A/B-тесте
+        (see src/ab_testing/ab_service.py), чтобы честно показать,
+        действительно ли ансамблевая ML-модель (группа A) даёт
+        измеримое улучшение — без необходимости держать в памяти
+        вторую полноценную ML-модель.
+
+        Доверительный интервал строится из реальной исторической
+        волатильности (std дневных изменений), а не из произвольной
+        константы.
+        """
+        df = await self.data_loader.load_data()
+        if df is None or df.empty:
+            return []
+
+        col = "usd_rate" if "usd" in currency.lower() else "eur_rate"
+        if col not in df.columns:
+            return []
+
+        last_val = float(df[col].iloc[-1])
+        daily_returns = df[col].diff().dropna()
+        daily_std = float(daily_returns.std()) if len(daily_returns) > 1 else last_val * 0.005
+        last_date = pd.to_datetime(df["date"].iloc[-1]) if "date" in df.columns else pd.Timestamp.now()
+
+        predictions = []
+        for i in range(days):
+            next_date = last_date + pd.Timedelta(days=i + 1)
+            # Uncertainty widens with sqrt(horizon), as for a random walk.
+            uncertainty = round(daily_std * ((i + 1) ** 0.5) * 1.96, 2)
+            predictions.append({
+                "date": next_date.strftime("%Y-%m-%d"),
+                "day": i + 1,
+                "rate": round(last_val, 2),
+                "forecast": round(last_val, 2),
+                "value": round(last_val, 2),
+                "lower_bound": round(last_val - uncertainty, 2),
+                "upper_bound": round(last_val + uncertainty, 2),
+                "lower": round(last_val - uncertainty, 2),
+                "upper": round(last_val + uncertainty, 2),
+            })
+        return predictions
+
     async def _generate_forecast(self, days: int = 7, currency: str = "all") -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         df = await self.data_loader.load_data()
         if df is None or df.empty:
