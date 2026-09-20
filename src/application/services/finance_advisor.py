@@ -22,8 +22,11 @@ from typing import Any, Dict, Optional
 CURRENCY_ALIASES = {
     "usd": ["доллар", "доллара", "долларов", "usd", "$", "бакс", "баксов"],
     "eur": ["евро", "eur", "€"],
+    "cny": ["юань", "юаня", "юаней", "cny", "yuan", "rmb", "жэньминьби"],
+    "gbp": ["фунт", "фунта", "фунтов", "gbp", "стерлинг", "£"],
     "rub": ["рубл", "руб", "rub", "₽"],
 }
+FOREIGN_CURRENCIES = ("usd", "eur", "cny", "gbp")
 
 _AMOUNT_RE = re.compile(r"(\d[\d\s]*(?:[.,]\d+)?)\s*(?:тыс\.?|тысяч[аи]?)?", re.IGNORECASE)
 _DAYS_RE = re.compile(r"(\d{1,3})\s*(?:дн[еяй]|day|days|недел)", re.IGNORECASE)
@@ -104,15 +107,8 @@ class FinanceAdvisor:
         self, question: str, current_rates: Dict[str, float], forecasts: Dict[str, list]
     ) -> Optional[Dict[str, Any]]:
         q = question.lower()
-        wants_usd = _detect_currency(q) == "usd" or "доллар" in q
-        wants_eur = _detect_currency(q) == "eur" or "евро" in q
-        currencies = []
-        if wants_usd and not wants_eur:
-            currencies = ["usd"]
-        elif wants_eur and not wants_usd:
-            currencies = ["eur"]
-        else:
-            currencies = ["usd", "eur"]
+        mentioned = [c for c in FOREIGN_CURRENCIES if any(a in q for a in CURRENCY_ALIASES[c])]
+        currencies = mentioned if mentioned else list(FOREIGN_CURRENCIES)
 
         horizon = _parse_horizon_days(question)
         result = {}
@@ -145,8 +141,11 @@ class FinanceAdvisor:
             return None
 
         if from_ccy == "rub":
-            # RUB -> the other currency mentioned, defaulting to USD.
-            to_ccy = "eur" if "евро" in question.lower() and "доллар" not in question.lower() else "usd"
+            # RUB -> whichever foreign currency is mentioned (besides
+            # "rub" itself), defaulting to USD if none is named.
+            q = question.lower()
+            mentioned_foreign = [c for c in FOREIGN_CURRENCIES if any(a in q for a in CURRENCY_ALIASES[c])]
+            to_ccy = mentioned_foreign[0] if mentioned_foreign else "usd"
             rate = rates.get(to_ccy)
             if not rate:
                 return None
@@ -210,7 +209,7 @@ class FinanceAdvisor:
         self, current_rates: Dict[str, float], forecasts: Dict[str, list]
     ) -> Optional[Dict[str, Any]]:
         result = {}
-        for ccy in ("usd", "eur"):
+        for ccy in FOREIGN_CURRENCIES:
             forecast_list = forecasts.get(ccy) or []
             if not forecast_list or ccy not in current_rates:
                 continue

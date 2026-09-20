@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from typing import Dict
 from src.common.logger.logger import get_logger
+from src.core.constants import SUPPORTED_CURRENCIES
 from src.infrastructure.ml.models.ensemble import EnsembleModel
 from src.infrastructure.ml.features.engineer import FeatureEngineer
 
@@ -20,25 +21,30 @@ class ModelTrainer:
 
     def train_all(self, df: pd.DataFrame) -> Dict[str, EnsembleModel]:
         """
-        Обучает и сохраняет ансамблевые модели для всех доступных валютных пар.
+        Обучает и сохраняет ансамблевые модели для всех валют, для которых
+        в переданных данных есть колонка (см. src/core/constants.py).
         """
         logger.info("Starting model training process...")
         trained_models = {}
 
         df_features = self.feature_engineer.create_features(df)
-        feature_cols = [c for c in df_features.columns if c not in ["date", "usd_rate", "eur_rate"]]
+        non_target_cols = ["date"] + SUPPORTED_CURRENCIES
+        feature_cols = [c for c in df_features.columns if c not in non_target_cols]
 
-        targets = ["usd_rate", "eur_rate"]
+        targets = [c for c in SUPPORTED_CURRENCIES if c in df_features.columns]
 
         for target in targets:
-            if target not in df_features.columns:
-                logger.warning(f"Target column '{target}' not found. Skipping.")
-                continue
-
             logger.info(f"Training ensemble model for target: {target}")
 
             # Очистка строк с NaN, образовавшимися при генерации лагов
             clean_df = df_features.dropna(subset=feature_cols + [target])
+
+            if len(clean_df) < 30:
+                logger.warning(
+                    f"Not enough clean rows ({len(clean_df)}) to train a model for {target} - skipping. "
+                    "Needs at least a few months of history for the 7-day lag/rolling features to have values."
+                )
+                continue
 
             X = clean_df[feature_cols]
             y = clean_df[target]
@@ -53,4 +59,3 @@ class ModelTrainer:
             trained_models[target] = model
 
         return trained_models
-    

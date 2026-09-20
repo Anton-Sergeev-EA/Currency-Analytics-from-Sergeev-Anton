@@ -29,7 +29,7 @@ async def get_ab_status():
 async def predict_with_ab(
     user_id: str = Query(default=None),
     session_id: str = Query(default=None),
-    currency: str = Query(default="usd_rate", description="usd_rate или eur_rate"),
+    currency: str = Query(default="usd_rate", description="usd_rate, eur_rate, cny_rate или gbp_rate"),
     days: int = Query(default=1, ge=1, le=30),
 ):
     """Получить реальный прогноз через A/B-тест (детерминированное назначение варианта)."""

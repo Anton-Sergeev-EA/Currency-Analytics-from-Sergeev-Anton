@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from src.application.services.data_service import DataService
 from src.application.services.model_evaluation import ModelEvaluator
+from src.core.constants import SUPPORTED_CURRENCIES, short_code
 from src.infrastructure.data.cache import CacheManager
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
@@ -49,10 +50,11 @@ async def health_check():
 async def models_info():
     """Отражает реальное наличие обученных .joblib-файлов на диске."""
     models = {}
-    for ccy in ("usd", "eur"):
-        path = os.path.join(MODELS_DIR, f"{ccy}_rate_model.joblib")
+    for ccy in SUPPORTED_CURRENCIES:
+        code = short_code(ccy)
+        path = os.path.join(MODELS_DIR, f"{ccy}_model.joblib")
         loaded = os.path.exists(path)
-        models[ccy] = {
+        models[code] = {
             "loaded": loaded,
             "type": "Ensemble (RF, GB, LGB, XGB)" if loaded else "Not trained yet - using statistical trend fallback",
             "path": path,
@@ -64,7 +66,7 @@ async def models_info():
 async def current_rates():
     stats = await data_service.get_stats()
     return {
-        "data": {"USD": stats.get("usd_current"), "EUR": stats.get("eur_current")},
+        "data": {short_code(c).upper(): stats.get(f"{short_code(c)}_current") for c in SUPPORTED_CURRENCIES},
         "source": "cbr",
     }
 
@@ -72,9 +74,10 @@ async def current_rates():
 @router.get("/api/model-accuracy")
 async def model_accuracy():
     """Реальные метрики walk-forward бэктеста (см. ModelEvaluator), кэшируются на несколько часов."""
-    usd_metrics = await evaluator.get_accuracy("usd_rate")
-    eur_metrics = await evaluator.get_accuracy("eur_rate")
-    return {"data": {"usd": usd_metrics, "eur": eur_metrics}}
+    data = {}
+    for ccy in SUPPORTED_CURRENCIES:
+        data[short_code(ccy)] = await evaluator.get_accuracy(ccy)
+    return {"data": data}
 
 
 @router.get("/api/prediction-test")
@@ -91,8 +94,8 @@ async def data_quality():
     if df is None or df.empty:
         return {"data": {"total_records": 0, "currencies": [], "completeness": 0.0}}
 
-    currencies = [c.replace("_rate", "").upper() for c in ("usd_rate", "eur_rate") if c in df.columns]
-    non_null_cols = [c for c in ("usd_rate", "eur_rate") if c in df.columns]
+    currencies = [short_code(c).upper() for c in SUPPORTED_CURRENCIES if c in df.columns]
+    non_null_cols = [c for c in SUPPORTED_CURRENCIES if c in df.columns]
     if non_null_cols:
         completeness = round(float(df[non_null_cols].notna().mean().mean()) * 100, 1)
     else:

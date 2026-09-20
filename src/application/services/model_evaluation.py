@@ -20,6 +20,7 @@ from typing import Any, Dict
 
 import numpy as np
 
+from src.core.constants import SUPPORTED_CURRENCIES, short_code
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.features.engineer import FeatureEngineer
 from src.infrastructure.ml.models.ensemble import EnsembleModel
@@ -99,11 +100,11 @@ class ModelEvaluator:
 
         service = ForecastService()
         result = {}
-        for ccy in ("usd_rate", "eur_rate"):
+        for ccy in SUPPORTED_CURRENCIES:
             try:
                 forecast = await service.get_forecast(days=1, currency=ccy)
                 if forecast:
-                    result[ccy.replace("_rate", "")] = forecast[0]["rate"]
+                    result[short_code(ccy)] = forecast[0]["rate"]
             except Exception as exc:
                 logger.warning("Prediction test failed for %s: %s", ccy, exc)
         return result

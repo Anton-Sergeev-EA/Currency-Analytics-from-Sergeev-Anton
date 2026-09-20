@@ -166,3 +166,37 @@ def test_rag_conversion_question_is_deterministic():
     assert resp.status_code == 200
     body = resp.json()
     assert body["type"] in ("conversion", "error")
+
+
+def test_cny_and_gbp_are_first_class_currencies_not_just_usd_eur():
+    """
+    Currency handling used to be hardcoded to USD/EUR in half a dozen
+    places (loader.py's fetchers, forecast_service.py's branching,
+    data_service.py, the knowledge-base builder, finance_advisor.py's
+    alias lists) while src/core/constants.py's Currency enum listing all
+    four sat completely unused. Adding CNY/GBP is now a one-line change
+    to SUPPORTED_CURRENCIES - this pins that the rest of the stack
+    actually picks it up end to end.
+    """
+    resp = client.get("/api/data/data?period_days=30")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "cny" in body and "gbp" in body
+
+    resp = client.get("/api/forecast/forecast?days=3&currency=CNY")
+    assert resp.status_code == 200
+    forecast = resp.json()
+    assert isinstance(forecast, list) and len(forecast) == 3
+
+    resp = client.get("/api/stats/stats")
+    assert resp.status_code == 200
+    stats = resp.json()
+    assert "cny_current" in stats and "gbp_current" in stats
+
+
+def test_rag_handles_cny_conversion():
+    resp = client.post("/api/rag/ask", json={"question": "Переведи 100 юаней в рубли"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "conversion"
+    assert "CNY" in body["answer"]

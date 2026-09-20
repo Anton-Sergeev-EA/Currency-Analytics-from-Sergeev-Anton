@@ -1,5 +1,7 @@
 import pandas as pd
 
+from src.core.constants import SUPPORTED_CURRENCIES
+
 
 class FeatureEngineer:
     """
@@ -18,8 +20,11 @@ class FeatureEngineer:
             df["day"] = df["date"].dt.day
             df["month"] = df["date"].dt.month
 
-        # Лаги и скользящие показатели для валютных пар
-        for col in ["usd_rate", "eur_rate"]:
+        # Лаги и скользящие показатели для каждой валютной пары, известной
+        # приложению (см. src/core/constants.py) - раньше здесь были
+        # захардкожены только usd_rate/eur_rate, из-за чего у CNY/GBP не
+        # было бы никаких признаков для обучения модели.
+        for col in SUPPORTED_CURRENCIES:
             if col in df.columns:
                 for lag in [1, 2, 3, 7]:
                     df[f"{col}_lag_{lag}"] = df[col].shift(lag)

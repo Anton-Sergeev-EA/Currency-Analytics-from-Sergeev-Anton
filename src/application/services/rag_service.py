@@ -29,6 +29,7 @@ from src.application.services.data_service import DataService
 from src.application.services.finance_advisor import FinanceAdvisor
 from src.application.services.forecast_service import ForecastService
 from src.core.config import settings
+from src.core.constants import SUPPORTED_CURRENCIES, short_code
 from src.common.logger.logger import get_logger
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.rag.knowledge_base.builder import KnowledgeBaseBuilder
@@ -84,8 +85,9 @@ class RAGService:
         q_lower = question.lower().strip()
 
         greetings = ["привет", "здравствуй", "добрый день", "добрый вечер", "кто ты"]
-        analysis_keywords = ["курс", "доллар", "евро", "usd", "eur", "прогноз", "сравни",
-                              "купить", "продать", "рубл", "динамик", "влож", "заработа"]
+        analysis_keywords = ["курс", "доллар", "евро", "юан", "фунт", "usd", "eur", "cny", "gbp",
+                              "прогноз", "сравни", "купить", "продать", "рубл", "динамик",
+                              "влож", "заработа", "конверт", "переведи"]
         is_pure_greeting = any(g in q_lower for g in greetings) and not any(k in q_lower for k in analysis_keywords)
 
         if is_pure_greeting:
@@ -104,11 +106,11 @@ class RAGService:
             df = await self.data_loader.load_data()
             await self._ensure_knowledge_base(df)
 
-            current_rates = {
-                "usd": float(df["usd_rate"].iloc[-1]) if df is not None and not df.empty and "usd_rate" in df.columns else None,
-                "eur": float(df["eur_rate"].iloc[-1]) if df is not None and not df.empty and "eur_rate" in df.columns else None,
-            }
-            current_rates = {k: v for k, v in current_rates.items() if v is not None}
+            current_rates = {}
+            if df is not None and not df.empty:
+                for col in SUPPORTED_CURRENCIES:
+                    if col in df.columns:
+                        current_rates[short_code(col)] = float(df[col].iloc[-1])
 
             intent = self.finance_advisor.detect_intent(question)
 
@@ -122,9 +124,10 @@ class RAGService:
                     return {"answer": answer, "type": "conversion", "sources": ["cbr_current"], "confidence": 0.95}
 
             if intent in ("investment", "comparison", "forecast"):
-                usd_forecast = await self.forecast_service.get_forecast(days=30, currency="usd_rate")
-                eur_forecast = await self.forecast_service.get_forecast(days=30, currency="eur_rate")
-                forecasts = {"usd": usd_forecast, "eur": eur_forecast}
+                forecasts = {}
+                for col in SUPPORTED_CURRENCIES:
+                    if short_code(col) in current_rates:
+                        forecasts[short_code(col)] = await self.forecast_service.get_forecast(days=30, currency=col)
 
                 if intent == "investment":
                     result = self.finance_advisor.compute_investment(question, current_rates, forecasts)

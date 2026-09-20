@@ -42,6 +42,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 
 from src.application.services.forecast_service import ForecastService
+from src.core.constants import column_name
 
 Base = declarative_base()
 
@@ -182,9 +183,7 @@ class ABTestService:
 
             updated = 0
             for log in pending:
-                col = log.currency if log.currency in df.columns else (
-                    "usd_rate" if "usd" in (log.currency or "") else "eur_rate"
-                )
+                col = log.currency if log.currency in df.columns else column_name(log.currency or "usd")
                 if col not in df.columns:
                     continue
 

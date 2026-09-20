@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from typing import Dict, Any, Union, List
+from src.core.constants import SUPPORTED_CURRENCIES, column_name, short_code
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.models.ensemble import EnsembleModel
 from src.infrastructure.ml.features.engineer import FeatureEngineer
@@ -46,7 +47,7 @@ class ForecastService:
         if df is None or df.empty:
             return []
 
-        col = "usd_rate" if "usd" in currency.lower() else "eur_rate"
+        col = column_name(currency)
         if col not in df.columns:
             return []
 
@@ -79,22 +80,24 @@ class ForecastService:
             logger.error("No historical data available for forecasting.")
             return {"error": "No historical data available"}
 
-        target_currencies = []
         c_lower = currency.lower().strip()
-        if c_lower in ["usd", "usd_rate"]:
-            target_currencies = ["usd_rate"]
-        elif c_lower in ["eur", "eur_rate"]:
-            target_currencies = ["eur_rate"]
+        if c_lower in ("all", ""):
+            target_currencies = [c for c in SUPPORTED_CURRENCIES if c in df.columns]
         else:
-            target_currencies = ["usd_rate", "eur_rate"]
+            col = column_name(c_lower)
+            target_currencies = [col] if col in df.columns else []
+
+        if not target_currencies:
+            return {"error": f"Unknown or unavailable currency: {currency}"}
 
         results = {}
         last_date = pd.to_datetime(df["date"].iloc[-1]) if "date" in df.columns else pd.Timestamp.now()
+        non_target_cols = ["date"] + SUPPORTED_CURRENCIES
 
         for curr in target_currencies:
             # Проверяем возможные имена файлов моделей
             model_path = os.path.join(self.models_dir, f"{curr}_model.joblib")
-            alt_path = os.path.join(self.models_dir, f"{curr.replace('_rate', '')}_model.joblib")
+            alt_path = os.path.join(self.models_dir, f"{short_code(curr)}_model.joblib")
 
             actual_path = model_path if os.path.exists(model_path) else (alt_path if os.path.exists(alt_path) else None)
 
@@ -117,16 +120,28 @@ class ForecastService:
             for i in range(days):
                 try:
                     df_features = self.feature_engineer.create_features(curr_df)
-                    feature_cols = [c for c in df_features.columns if c not in ["date", "usd_rate", "eur_rate"]]
+                    feature_cols = [c for c in df_features.columns if c not in non_target_cols]
                     last_row = df_features[feature_cols].iloc[[-1]]
-                    mean_pred, lower, upper = model.predict(last_row)
+                    # predict() returns point estimates only - the
+                    # confidence interval comes from
+                    # predict_with_uncertainty(), a *separate* call
+                    # (bootstrap over stored residuals). The previous
+                    # version unpacked predict()'s single array as
+                    # `mean_pred, lower, upper`, which would raise
+                    # "too many values to unpack" the moment a real
+                    # trained model existed on disk - it never
+                    # surfaced only because no .joblib model has been
+                    # trained yet, so this branch was never actually
+                    # exercised.
+                    mean_pred, (lower, upper) = model.predict_with_uncertainty(last_row)
 
                     pred_val = round(float(mean_pred[0]), 2)
                     low_val = round(float(lower[0]), 2)
                     up_val = round(float(upper[0]), 2)
                 except Exception as e:
                     logger.error(f"Prediction step error for {curr}: {e}")
-                    return self._fallback_forecast(df, curr, days, last_date)
+                    results[curr] = self._fallback_forecast(df, curr, days, last_date)
+                    break
 
                 next_date = last_date + pd.Timedelta(days=i + 1)
                 date_str = next_date.strftime("%Y-%m-%d")
@@ -145,35 +160,38 @@ class ForecastService:
                 })
 
                 new_row = {"date": next_date, curr: pred_val}
-                other_curr = "eur_rate" if curr == "usd_rate" else "usd_rate"
-                if other_curr in curr_df.columns:
-                    new_row[other_curr] = curr_df[other_curr].iloc[-1]
+                for other_curr in SUPPORTED_CURRENCIES:
+                    if other_curr != curr and other_curr in curr_df.columns:
+                        new_row[other_curr] = curr_df[other_curr].iloc[-1]
 
                 curr_df = pd.concat([curr_df, pd.DataFrame([new_row])], ignore_index=True)
+            else:
+                results[curr] = predictions
 
-            results[curr] = predictions
-
-        # Если запрошена одна валюта, отдаем массив, если все — словарь со всеми алиасами ключей
+        # Если запрошена одна валюта, отдаем массив, если несколько — словарь
+        # с коротким кодом, полным именем колонки и заглавными буквами на
+        # каждую валюту (для обратной совместимости фронтенда/интеграций).
         if len(target_currencies) == 1:
-            return results[target_currencies[0]]
+            return results.get(target_currencies[0], [])
 
-        usd_list = results.get("usd_rate", [])
-        eur_list = results.get("eur_rate", [])
+        output: Dict[str, Any] = {}
+        for curr in target_currencies:
+            preds = results.get(curr, [])
+            short = short_code(curr)
+            output[short] = preds
+            output[curr] = preds
+            output[short.upper()] = preds
 
-        return {
-            "usd": usd_list,
-            "usd_rate": usd_list,
-            "USD": usd_list,
-            "eur": eur_list,
-            "eur_rate": eur_list,
-            "EUR": eur_list,
-            "dates": [item["date"] for item in usd_list] if usd_list else []
-        }
+        primary = output.get("usd") or next((output[short_code(c)] for c in target_currencies if output.get(short_code(c))), [])
+        output["dates"] = [item["date"] for item in primary]
+        return output
 
     def _fallback_forecast(self, df: pd.DataFrame, col: str, days: int, last_date: pd.Timestamp) -> List[Dict[str, Any]]:
         """Статистический расчет тренда при отсутствии или сбое файла .joblib."""
         if col not in df.columns:
-            col = "usd_rate" if "usd" in col else "eur_rate"
+            col = column_name(col)
+        if col not in df.columns:
+            return []
 
         last_val = float(df[col].iloc[-1])
         prev_val = float(df[col].iloc[-5]) if len(df) >= 5 else float(df[col].iloc[0])
