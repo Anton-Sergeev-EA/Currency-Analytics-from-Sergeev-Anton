@@ -3,17 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Currency Analytics from Sergeev Anton</title>
+    <title>Currency Analytics — Sergeev Anton</title>
     <style>
+        :root {
+            --bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --text: #1a1a2e;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --header-grad-1: #1a1a2e;
+            --header-grad-2: #16213e;
+            --accent: #1a1a2e;
+            --accent-hover: #2d2d44;
+            --btn-secondary-bg: #e5e7eb;
+            --btn-secondary-bg-hover: #d1d5db;
+            --input-bg: #ffffff;
+            --chat-bot-bg: #dbeafe;
+            --chat-user-bg: #e5e7eb;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        [data-theme="dark"] {
+            --bg: #0f1117;
+            --card-bg: #1a1d29;
+            --text: #e5e7eb;
+            --text-muted: #9ca3af;
+            --border: #2d3142;
+            --header-grad-1: #05060a;
+            --header-grad-2: #12141f;
+            --accent: #4f7cff;
+            --accent-hover: #6b91ff;
+            --btn-secondary-bg: #2d3142;
+            --btn-secondary-bg-hover: #3a3f56;
+            --input-bg: #12141f;
+            --chat-bot-bg: #1e2a4a;
+            --chat-user-bg: #2d3142;
+            --shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
-            color: #1a1a2e;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100vh;
+            transition: background .2s ease, color .2s ease;
         }
         .header {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(135deg, var(--header-grad-1) 0%, var(--header-grad-2) 100%);
             color: white;
             padding: 20px 40px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
@@ -25,16 +60,23 @@
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 12px;
         }
         .header h1 { font-size: 24px; font-weight: 600; }
         .header .subtitle { font-size: 14px; opacity: 0.7; margin-top: 4px; }
-        .header-status { display: flex; align-items: center; gap: 12px; }
+        .header-status { display: flex; align-items: center; gap: 16px; }
         .status-dot {
             width: 10px; height: 10px; border-radius: 50%;
             background: #4ade80; display: inline-block;
             animation: pulse 2s infinite;
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .theme-toggle {
+            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+            color: white; border-radius: 20px; padding: 6px 14px; cursor: pointer;
+            font-size: 13px; display: flex; align-items: center; gap: 6px;
+        }
+        .theme-toggle:hover { background: rgba(255,255,255,0.2); }
         .container { max-width: 1400px; margin: 0 auto; padding: 24px 40px; }
         .stats-grid {
             display: grid;
@@ -42,66 +84,89 @@
             gap: 16px; margin-bottom: 24px;
         }
         .stat-card {
-            background: white; border-radius: 12px; padding: 18px 22px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            background: var(--card-bg); border-radius: 12px; padding: 18px 22px;
+            box-shadow: var(--shadow);
         }
-        .stat-card .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
-        .stat-card .change { font-size: 13px; margin-top: 2px; color: #6b7280; }
+        .stat-card .change { font-size: 13px; margin-top: 2px; color: var(--text-muted); }
         .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
-        @media (max-width: 1024px) { .two-col { grid-template-columns: 1fr; } }
-        .card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; color: #1a1a2e; }
+        .three-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+        @media (max-width: 1024px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 22px 24px; box-shadow: var(--shadow); }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .card-title .hint { font-size: 11px; font-weight: 500; color: var(--text-muted); background: var(--btn-secondary-bg); padding: 2px 8px; border-radius: 10px; }
         .chart-container { height: 320px; position: relative; }
         .chat-box {
-            height: 260px; overflow-y: auto; border: 1px solid #e5e7eb;
+            height: 260px; overflow-y: auto; border: 1px solid var(--border);
             border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;
-            background: #fafafa;
+            background: var(--bg);
         }
         .chat-message { margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; max-width: 95%; }
-        .chat-message.user { background: #e5e7eb; margin-left: auto; text-align: right; }
-        .chat-message.bot { background: #dbeafe; margin-right: auto; }
-        .chat-message .sender { font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 2px; }
+        .chat-message.user { background: var(--chat-user-bg); margin-left: auto; text-align: right; }
+        .chat-message.bot { background: var(--chat-bot-bg); margin-right: auto; }
+        .chat-message .sender { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
         .chat-message .text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+        .chat-message .sources { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+        .chat-message .source-tag {
+            font-size: 10px; background: rgba(0,0,0,0.08); color: var(--text-muted);
+            padding: 2px 8px; border-radius: 10px;
+        }
         .chat-input-row { display: flex; gap: 10px; }
         .chat-input-row input {
-            flex: 1; padding: 10px 14px; border: 1px solid #d1d5db;
+            flex: 1; padding: 10px 14px; border: 1px solid var(--border);
             border-radius: 8px; font-size: 14px; outline: none;
+            background: var(--input-bg); color: var(--text);
         }
-        .chat-input-row input:focus { border-color: #1a1a2e; }
+        .chat-input-row input:focus { border-color: var(--accent); }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
-        .btn-primary { background: #1a1a2e; color: white; }
-        .btn-primary:hover { background: #2d2d44; }
-        .btn-secondary { background: #e5e7eb; color: #1a1a2e; }
-        .btn-secondary:hover { background: #d1d5db; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary { background: var(--btn-secondary-bg); color: var(--text); }
+        .btn-secondary:hover { background: var(--btn-secondary-bg-hover); }
         .period-selector { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
         .period-btn {
-            padding: 4px 14px; border: 1px solid #d1d5db; border-radius: 20px;
-            background: white; font-size: 13px; cursor: pointer;
+            padding: 4px 14px; border: 1px solid var(--border); border-radius: 20px;
+            background: var(--card-bg); color: var(--text); font-size: 13px; cursor: pointer;
         }
-        .period-btn:hover { background: #f3f4f6; }
-        .period-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+        .period-btn:hover { background: var(--btn-secondary-bg); }
+        .period-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
         .forecast-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
-        .forecast-table th { text-align: left; padding: 8px 6px; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #4b5563; }
-        .forecast-table td { padding: 8px 6px; border-bottom: 1px solid #f3f4f6; }
-        .forecast-table tr:hover td { background: #f9fafb; }
+        .forecast-table th { text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--border); font-weight: 600; color: var(--text-muted); }
+        .forecast-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); }
+        .forecast-table .bounds { font-size: 11px; color: var(--text-muted); }
         .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
         .badge-usd { background: #dbeafe; color: #1d4ed8; }
         .badge-eur { background: #fce7f3; color: #be185d; }
-        .loading { text-align: center; padding: 40px; color: #6b7280; }
+        .loading { text-align: center; padding: 40px; color: var(--text-muted); }
         .spinner {
             display: inline-block; width: 30px; height: 30px;
-            border: 3px solid #e5e7eb; border-top-color: #1a1a2e;
+            border: 3px solid var(--border); border-top-color: var(--accent);
             border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .quick-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
         .quick-btns .btn { font-size: 12px; padding: 4px 12px; }
-        .footer {
-            text-align: center; padding: 20px 40px; color: #6b7280;
-            font-size: 13px; border-top: 1px solid #e5e7eb; margin-top: 20px;
+        .converter-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+        .converter-row input[type=number] {
+            flex: 1; min-width: 120px; padding: 10px 14px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 14px; background: var(--input-bg); color: var(--text);
         }
-        .footer a { color: #1a1a2e; text-decoration: none; }
+        .converter-row select {
+            padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+            font-size: 14px; background: var(--input-bg); color: var(--text);
+        }
+        .converter-result {
+            font-size: 22px; font-weight: 700; padding: 14px; text-align: center;
+            background: var(--bg); border-radius: 8px;
+        }
+        .converter-swap { background: var(--btn-secondary-bg); border: none; border-radius: 50%;
+            width: 36px; height: 36px; cursor: pointer; font-size: 16px; color: var(--text); }
+        .footer {
+            text-align: center; padding: 20px 40px; color: var(--text-muted);
+            font-size: 13px; border-top: 1px solid var(--border); margin-top: 20px;
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
         .footer a:hover { text-decoration: underline; }
         @media (max-width: 640px) {
             .header { padding: 16px 20px; }
@@ -120,12 +185,13 @@
 <div class="header">
     <div class="header-content">
         <div>
-            <h1>Currency Analytics from Sergeev Anton</h1>
-            <div class="subtitle">Анализ и прогнозирование курсов валют от Сергеева Антона</div>
+            <h1>Currency Analytics</h1>
+            <div class="subtitle">ML-прогноз и RAG-ассистент по курсам USD/EUR — Сергеев Антон</div>
         </div>
         <div class="header-status">
             <span class="status-dot"></span>
             <span style="font-size:14px;">Система работает</span>
+            <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙 Тёмная тема</button>
         </div>
     </div>
 </div>
@@ -152,13 +218,16 @@
         <div class="stat-card">
             <div class="label">Волатильность USD</div>
             <div class="value" id="usdVol">--</div>
-            <div class="change">Стандартное отклонение</div>
+            <div class="change">Std. отклонение за период</div>
         </div>
     </div>
 
     <div class="two-col">
         <div class="card">
-            <div class="card-title">График курсов валют</div>
+            <div class="card-title">
+                <span>График курсов валют</span>
+                <span class="hint">данные ЦБ РФ</span>
+            </div>
             <div class="period-selector">
                 <button class="period-btn" data-period="30">30 дней</button>
                 <button class="period-btn" data-period="90">90 дней</button>
@@ -172,11 +241,14 @@
         </div>
 
         <div class="card">
-            <div class="card-title">AI-ассистент Антон</div>
+            <div class="card-title">
+                <span>AI-ассистент Антон</span>
+                <span class="hint">RAG + Ollama</span>
+            </div>
             <div class="chat-box" id="chatBox">
                 <div class="chat-message bot">
                     <div class="sender">Ассистент Антон</div>
-                    <div class="text">Здравствуйте! Я ваш виртуальный помощник Антон. Я помогу вам с анализом валют. Задайте вопрос о курсах, прогнозах или инвестициях.</div>
+                    <div class="text">Здравствуйте! Спросите про курс, прогноз на конкретный срок, конвертацию суммы или сравнение валют — отвечу точным расчётом на реальных данных, а не догадкой.</div>
                 </div>
             </div>
             <div class="chat-input-row">
@@ -184,42 +256,70 @@
                 <button class="btn btn-primary" onclick="sendQuestion()">Отправить</button>
             </div>
             <div class="quick-btns">
-                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по доллару?')">Прогноз USD</button>
-                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по евро?')">Прогноз EUR</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по доллару на неделю?')">Прогноз USD</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Какой прогноз по евро на неделю?')">Прогноз EUR</button>
                 <button class="btn btn-secondary" onclick="quickQuestion('Сравни доллар и евро')">Сравнить</button>
-                <button class="btn btn-secondary" onclick="quickQuestion('Что лучше купить для инвестиций?')">Инвестиции</button>
+                <button class="btn btn-secondary" onclick="quickQuestion('Сколько я заработаю, если вложу 100000 рублей в доллары на месяц?')">Инвестиции</button>
             </div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-title">Прогноз на 7 дней</div>
-        <div id="forecastContainer">
-            <div class="loading" id="forecastLoading">
-                <div class="spinner"></div>
-                <div style="margin-top:12px;">Загрузка прогноза</div>
+    <div class="three-col">
+        <div class="card">
+            <div class="card-title">
+                <span>Конвертер валют</span>
+                <span class="hint">по текущему курсу ЦБ</span>
             </div>
-            <table class="forecast-table" id="forecastTable" style="display:none;">
-                <thead>
-                    <tr>
-                        <th>День</th>
-                        <th>USD/RUB</th>
-                        <th>EUR/RUB</th>
-                    </tr>
-                </thead>
-                <tbody id="forecastBody"></tbody>
-            </table>
+            <div class="converter-row">
+                <input type="number" id="convAmount" value="1000" min="0" step="any" oninput="updateConverter()">
+                <select id="convFrom" onchange="updateConverter()">
+                    <option value="RUB">RUB</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                </select>
+                <button class="converter-swap" onclick="swapConverter()" title="Поменять местами">⇅</button>
+                <select id="convTo" onchange="updateConverter()">
+                    <option value="USD">USD</option>
+                    <option value="RUB">RUB</option>
+                    <option value="EUR">EUR</option>
+                </select>
+            </div>
+            <div class="converter-result" id="convResult">—</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <span>Прогноз на 7 дней</span>
+                <span class="hint">ансамбль ML-моделей</span>
+            </div>
+            <div id="forecastContainer">
+                <div class="loading" id="forecastLoading">
+                    <div class="spinner"></div>
+                    <div style="margin-top:12px;">Загрузка прогноза</div>
+                </div>
+                <table class="forecast-table" id="forecastTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>День</th>
+                            <th>USD/RUB</th>
+                            <th>EUR/RUB</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forecastBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <div class="footer">
-        <div style="margin-bottom: 8px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-            <strong>Внимание:</strong> Данный ресурс носит исключительно информационный характер. 
-            Все аналитические данные, графики и прогнозы не являются индивидуальной инвестиционной рекомендацией. 
+        <div style="margin-bottom: 8px; color: var(--text-muted); font-size: 12px; line-height: 1.4;">
+            <strong>Внимание:</strong> Данный ресурс носит исключительно информационный характер.
+            Все аналитические данные, графики и прогнозы не являются индивидуальной инвестиционной рекомендацией.
             Все решения пользователь принимает самостоятельно.
         </div>
         Developed by <strong>Сергеев Антон Валентинович</strong> © 2026
-        • <a href="/api/docs" target="_blank">API Documentation</a>
+        • <a href="/docs" target="_blank">API Documentation</a>
+        • <a href="/monitoring/dashboard" target="_blank">Мониторинг моделей</a>
         • <a href="/health" target="_blank">Health Check</a>
     </div>
 </div>
@@ -230,13 +330,33 @@
     let chart = null;
     let currentPeriod = 180;
     let isLoading = false;
+    let latestRates = { USD: null, EUR: null };
 
     const chatBox = document.getElementById('chatBox');
     const chatInput = document.getElementById('chatInput');
 
+    // --- Theme ---
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        const btn = document.getElementById('themeToggle');
+        btn.textContent = theme === 'dark' ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+        if (chart) { chart.destroy(); chart = null; loadData(currentPeriod).then(d => { if (d && d.data) updateChart(d.data, currentPeriod); }); }
+    }
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        applyTheme(next);
+    }
+    (function initTheme() {
+        let saved = 'light';
+        try { saved = localStorage.getItem('theme') || 'light'; } catch (e) {}
+        document.documentElement.setAttribute('data-theme', saved);
+    })();
+
     function showError(message) {
         const box = document.getElementById('errorBox');
-        box.textContent = 'Ошибка: ' + message;
+        box.textContent = message;
         box.style.display = 'block';
         setTimeout(() => { box.style.display = 'none'; }, 8000);
     }
@@ -275,6 +395,14 @@
         }
     }
 
+    function computeVolatility(records, field) {
+        const values = records.map(r => r[field]).filter(v => typeof v === 'number');
+        if (values.length < 2) return 0;
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1);
+        return Math.sqrt(variance);
+    }
+
     async function updateUI(period) {
         if (isLoading) return;
         isLoading = true;
@@ -288,16 +416,21 @@
 
             if (data && data.data && data.data.length > 0) {
                 updateChart(data.data, period);
+                document.getElementById('usdVol').textContent = computeVolatility(data.data, 'usd_rate').toFixed(3);
             }
 
             if (stats) {
                 document.getElementById('usdRate').textContent = stats.usd_current.toFixed(2);
                 document.getElementById('eurRate').textContent = stats.eur_current.toFixed(2);
-                document.getElementById('usdChange').textContent = 'Официальный курс ЦБ';
-                document.getElementById('eurChange').textContent = 'Официальный курс ЦБ';
+                latestRates.USD = stats.usd_current;
+                latestRates.EUR = stats.eur_current;
+                const usdArrow = stats.usd_change > 0 ? '▲' : (stats.usd_change < 0 ? '▼' : '—');
+                const eurArrow = stats.eur_change > 0 ? '▲' : (stats.eur_change < 0 ? '▼' : '—');
+                document.getElementById('usdChange').textContent = `${usdArrow} ${stats.usd_change > 0 ? '+' : ''}${stats.usd_change.toFixed(2)} за день`;
+                document.getElementById('eurChange').textContent = `${eurArrow} ${stats.eur_change > 0 ? '+' : ''}${stats.eur_change.toFixed(2)} за день`;
                 document.getElementById('dataPeriod').textContent = stats.total_records + ' дн.';
                 document.getElementById('dataRange').textContent = 'Актуально на ' + new Date().toLocaleDateString();
-                document.getElementById('usdVol').textContent = '0.00';
+                updateConverter();
             }
         } catch (e) {
             console.error('Update UI error:', e);
@@ -305,7 +438,7 @@
 
         try {
             const forecast = await loadForecast();
-            if (forecast && forecast.length > 0) {
+            if (forecast && (forecast.usd || Array.isArray(forecast)) ) {
                 updateForecastTable(forecast);
             } else {
                 document.getElementById('forecastLoading').innerHTML = '<div style="color:#dc2626;">Не удалось загрузить прогноз</div>';
@@ -322,10 +455,19 @@
         isLoading = false;
     }
 
+    function chartColors() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return {
+            grid: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+            text: dark ? '#9ca3af' : '#4b5563'
+        };
+    }
+
     function updateChart(data, period) {
         const dates = data.map(d => new Date(d.date).toLocaleDateString());
         const usd = data.map(d => d.usd_rate);
         const eur = data.map(d => d.eur_rate);
+        const colors = chartColors();
 
         const ctx = document.getElementById('currencyChart').getContext('2d');
 
@@ -368,7 +510,7 @@
                     plugins: {
                         legend: {
                             position: 'top',
-                            labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+                            labels: { usePointStyle: true, padding: 20, font: { size: 12 }, color: colors.text }
                         },
                         tooltip: {
                             callbacks: {
@@ -381,11 +523,11 @@
                     scales: {
                         x: {
                             grid: { display: false },
-                            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 20 }
+                            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 20, color: colors.text }
                         },
                         y: {
-                            grid: { color: 'rgba(0,0,0,0.06)' },
-                            ticks: { callback: function(value) { return value.toFixed(1); } }
+                            grid: { color: colors.grid },
+                            ticks: { callback: function(value) { return value.toFixed(1); }, color: colors.text }
                         }
                     },
                     interaction: { intersect: false, mode: 'index' }
@@ -400,17 +542,26 @@
         const body = document.getElementById('forecastBody');
         body.innerHTML = '';
 
-        const labels = ['День 1', 'День 2', 'День 3', 'День 4', 'День 5', 'День 6', 'День 7'];
+        // GET /api/forecast/forecast?currency=ALL returns {usd: [...], eur: [...], ...}
+        // (a list would only come back for a single-currency request).
+        const usdList = Array.isArray(forecast) ? forecast : (forecast.usd || []);
+        const eurList = Array.isArray(forecast) ? [] : (forecast.eur || []);
+        const rows = Math.min(usdList.length || eurList.length, 7);
 
-        for (let i = 0; i < Math.min(forecast.length, 7); i++) {
+        for (let i = 0; i < rows; i++) {
+            const u = usdList[i] || {};
+            const e = eurList[i] || {};
             const tr = document.createElement('tr');
-            const item = forecast[i];
-            const usdValue = item.forecast || item.rate || 0;
-            const eurValue = item.eur_rate || (usdValue * 1.15) || 0;
             tr.innerHTML = `
-                <td><strong>${labels[i] || 'День ' + (i+1)}</strong></td>
-                <td><span class="badge badge-usd">${usdValue.toFixed(2)}</span></td>
-                <td><span class="badge badge-eur">${eurValue.toFixed(2)}</span></td>
+                <td><strong>День ${u.day || e.day || (i + 1)}</strong></td>
+                <td>
+                    <span class="badge badge-usd">${(u.rate ?? u.forecast ?? 0).toFixed(2)}</span>
+                    ${u.lower_bound != null ? `<div class="bounds">${u.lower_bound.toFixed(2)}–${u.upper_bound.toFixed(2)}</div>` : ''}
+                </td>
+                <td>
+                    <span class="badge badge-eur">${(e.rate ?? e.forecast ?? 0).toFixed(2)}</span>
+                    ${e.lower_bound != null ? `<div class="bounds">${e.lower_bound.toFixed(2)}–${e.upper_bound.toFixed(2)}</div>` : ''}
+                </td>
             `;
             body.appendChild(tr);
         }
@@ -419,13 +570,19 @@
         document.getElementById('forecastTable').style.display = 'table';
     }
 
-    function addMessage(sender, text, isUser) {
+    function addMessage(sender, text, isUser, sources) {
         const div = document.createElement('div');
         div.className = 'chat-message ' + (isUser ? 'user' : 'bot');
+        let sourcesHtml = '';
+        if (!isUser && sources && sources.length > 0) {
+            sourcesHtml = '<div class="sources">' + sources.map(s => `<span class="source-tag">📄 ${s}</span>`).join('') + '</div>';
+        }
         div.innerHTML = `
             <div class="sender">${isUser ? 'Вы' : 'Ассистент'}</div>
-            <div class="text">${text}</div>
+            <div class="text"></div>
+            ${sourcesHtml}
         `;
+        div.querySelector('.text').textContent = text;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -449,7 +606,7 @@
 
             const data = await resp.json();
             const answer = data.answer || 'Извините, не удалось получить ответ.';
-            addMessage('Ассистент', answer, false);
+            addMessage('Ассистент', answer, false, data.sources);
 
         } catch (e) {
             console.error('Send question error:', e);
@@ -463,6 +620,36 @@
     function quickQuestion(q) {
         chatInput.value = q;
         sendQuestion();
+    }
+
+    function updateConverter() {
+        const amount = parseFloat(document.getElementById('convAmount').value) || 0;
+        const from = document.getElementById('convFrom').value;
+        const to = document.getElementById('convTo').value;
+        const resultBox = document.getElementById('convResult');
+
+        if (from === to) {
+            resultBox.textContent = amount.toFixed(2) + ' ' + to;
+            return;
+        }
+        if (!latestRates.USD || !latestRates.EUR) {
+            resultBox.textContent = 'Загрузка курсов...';
+            return;
+        }
+
+        const toRub = { RUB: 1, USD: latestRates.USD, EUR: latestRates.EUR };
+        const inRub = amount * toRub[from];
+        const result = inRub / toRub[to];
+        resultBox.textContent = result.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + to;
+    }
+
+    function swapConverter() {
+        const fromSel = document.getElementById('convFrom');
+        const toSel = document.getElementById('convTo');
+        const tmp = fromSel.value;
+        fromSel.value = toSel.value;
+        toSel.value = tmp;
+        updateConverter();
     }
 
     async function refreshData() {
@@ -482,29 +669,6 @@
         btn.disabled = false;
     }
 
-    async function forceRefreshData() {
-        const btn = document.querySelector('.period-selector .btn-secondary:last-child');
-        btn.textContent = 'Refreshing...';
-        btn.disabled = true;
-
-        try {
-            const resp = await fetch('/api/force-refresh', { method: 'POST' });
-            const data = await resp.json();
-            if (data.status === 'success') {
-                showError('✅ Data refreshed successfully!');
-                await updateUI(currentPeriod);
-            } else {
-                showError('❌ Refresh failed: ' + data.message);
-            }
-        } catch (e) {
-            showError('❌ Network error during refresh');
-            console.error(e);
-        }
-
-        btn.textContent = 'Force Refresh';
-        btn.disabled = false;
-    }
-
     document.querySelectorAll('.period-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             currentPeriod = parseInt(this.dataset.period);
@@ -512,33 +676,17 @@
         });
     });
 
-    function addForceRefreshButton() {
-        const refreshBtn = document.querySelector('.period-selector .btn-secondary');
-        if (refreshBtn && !document.querySelector('.force-refresh-btn')) {
-            const forceBtn = document.createElement('button');
-            forceBtn.className = 'btn btn-secondary force-refresh-btn';
-            forceBtn.style.marginLeft = '6px';
-            forceBtn.style.padding = '4px 14px';
-            forceBtn.style.fontSize = '13px';
-            forceBtn.textContent = 'Force Refresh';
-            forceBtn.onclick = forceRefreshData;
-            refreshBtn.parentNode.appendChild(forceBtn);
-        }
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
+        applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
         updateUI(currentPeriod);
         chatInput.focus();
-        addForceRefreshButton();
 
         setInterval(() => {
             if (!isLoading) {
                 updateUI(currentPeriod);
-                console.log('Auto-refresh at:', new Date().toLocaleTimeString());
             }
         }, 60000);
     });
 </script>
-
 </body>
 </html>

@@ -1,17 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Мониторинг системы</title>
+    <title>Мониторинг системы — Currency Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; color: #1a1a2e; }
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { color: #1a1a2e; }
+        h1 a { font-size: 14px; margin-left: 12px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         .status-ok { color: #48bb78; }
         .status-error { color: #fc8181; }
         .metric { font-size: 24px; font-weight: bold; }
         .metric-label { color: #718096; font-size: 14px; }
+        .note { color: #718096; font-size: 12px; margin-top: 8px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
         th { background: #f7fafc; font-weight: 600; }
@@ -22,7 +24,7 @@
     </style>
 </head>
 <body>
-    <h1>📊 Мониторинг системы</h1>
+    <h1>📊 Мониторинг системы <a href="/">← на главную</a></h1>
     <div class="grid" id="dashboard">
         <div class="card">
             <h3>Статус системы</h3>
@@ -43,56 +45,65 @@
     </div>
 
     <div class="card">
-        <h3>📈 Точность моделей</h3>
+        <h3>📈 Точность моделей (реальный walk-forward бэктест)</h3>
         <div id="accuracyTable">Загрузка...</div>
+        <div class="note" id="accuracyNote"></div>
     </div>
 
     <div class="card">
-        <h3>📊 История предсказаний</h3>
+        <h3>🅰️🅱️ A/B-тест: ML-ансамбль (A) vs наивный прогноз (B)</h3>
+        <div id="abTest">Загрузка...</div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Текущий прогноз на 1 день (продакшен-модель)</h3>
         <div class="chart-container">
             <canvas id="predictionChart"></canvas>
         </div>
     </div>
 
-    <div class="card">
-        <h3>📉 Метрики качества предсказаний</h3>
-        <div id="metrics">Загрузка...</div>
-    </div>
-
     <script>
         let chart = null;
 
+        function statusFor(r2) {
+            if (r2 > 0.85) return ['✅ Отлично', 'good'];
+            if (r2 > 0.5) return ['⚠️ Средне', 'medium'];
+            return ['❌ Слабо', 'bad'];
+        }
+
         async function loadData() {
             try {
-                // Health
-                const health = await fetch('/monitoring/api/health').then(r => r.json());
+                await fetch('/monitoring/api/health').then(r => r.json());
                 document.getElementById('health').innerHTML = `<span class="status-ok">✅ Здоров</span>`;
 
-                // Models
                 const models = await fetch('/monitoring/api/models').then(r => r.json());
-                document.getElementById('models').innerHTML = Object.keys(models.models).join(', ');
+                document.getElementById('models').innerHTML = Object.entries(models.models)
+                    .map(([k, v]) => `${k.toUpperCase()}: ${v.loaded ? '✅ обучена' : '⚠️ не обучена (fallback)'}`)
+                    .join('<br>');
 
-                // Rates
                 const rates = await fetch('/monitoring/api/current-rates').then(r => r.json());
-                document.getElementById('rates').innerHTML = `USD: ${rates.data.USD}, EUR: ${rates.data.EUR}`;
+                document.getElementById('rates').innerHTML = `USD: ${rates.data.USD ?? '—'}<br>EUR: ${rates.data.EUR ?? '—'}`;
 
-                // Quality
                 const quality = await fetch('/monitoring/api/data-quality').then(r => r.json());
                 document.getElementById('quality').innerHTML = `
                     Записей: ${quality.data.total_records}<br>
+                    Валюты: ${(quality.data.currencies || []).join(', ') || '—'}<br>
                     Полнота: ${quality.data.completeness}%
                 `;
 
-                // Accuracy Table
                 const accuracy = await fetch('/monitoring/api/model-accuracy').then(r => r.json());
                 let tableHtml = `<table>
-                    <tr><th>Модель</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Статус</th></tr>`;
+                    <tr><th>Валюта</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Статус</th></tr>`;
+                let noteText = '';
                 for (const [key, value] of Object.entries(accuracy.data)) {
-                    const status = value.r2 > 0.85 ? '✅ Отлично' : value.r2 > 0.7 ? '⚠️ Средне' : '❌ Плохо';
-                    const statusClass = value.r2 > 0.85 ? 'good' : value.r2 > 0.7 ? 'medium' : 'bad';
+                    if (!value.available) {
+                        tableHtml += `<tr><td><strong>${key.toUpperCase()}</strong></td><td colspan="5">${value.reason || 'недоступно'}</td></tr>`;
+                        continue;
+                    }
+                    const [status, statusClass] = statusFor(value.r2);
                     tableHtml += `
                         <tr>
-                            <td><strong>${key}</strong></td>
+                            <td><strong>${key.toUpperCase()}</strong></td>
                             <td>${value.rmse.toFixed(4)}</td>
                             <td>${value.mae.toFixed(4)}</td>
                             <td>${value.mape.toFixed(2)}%</td>
@@ -100,39 +111,38 @@
                             <td class="${statusClass}">${status}</td>
                         </tr>
                     `;
+                    noteText = value.method || noteText;
                 }
                 tableHtml += `</table>`;
                 document.getElementById('accuracyTable').innerHTML = tableHtml;
+                document.getElementById('accuracyNote').textContent = noteText
+                    ? `Методология: ${noteText}. Кэшируется на несколько часов.`
+                    : '';
 
-                // Metrics (расширенные метрики)
-                const metricsHtml = `
-                    <div class="grid">
-                        <div class="card">
-                            <div class="metric-label">Средняя ошибка (MAE)</div>
-                            <div class="metric">${accuracy.data.usd.mae.toFixed(4)}</div>
-                        </div>
-                        <div class="card">
-                            <div class="metric-label">Корень из MSE (RMSE)</div>
-                            <div class="metric">${accuracy.data.usd.rmse.toFixed(4)}</div>
-                        </div>
-                        <div class="card">
-                            <div class="metric-label">Средняя процентная ошибка (MAPE)</div>
-                            <div class="metric">${accuracy.data.usd.mape.toFixed(2)}%</div>
-                        </div>
-                        <div class="card">
-                            <div class="metric-label">Коэффициент детерминации (R²)</div>
-                            <div class="metric">${accuracy.data.usd.r2.toFixed(4)}</div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('metrics').innerHTML = metricsHtml;
+                const abStatus = await fetch('/api/ab-test/status').then(r => r.json());
+                const abStats = await fetch('/api/ab-test/stats?days=30').then(r => r.json());
+                let abHtml = `<p>Разбивка трафика: A ${(abStatus.traffic_split.A * 100).toFixed(0)}% / B ${(abStatus.traffic_split.B * 100).toFixed(0)}%</p>`;
+                if (abStats.variant_A && abStats.variant_B) {
+                    abHtml += `<table>
+                        <tr><th>Вариант</th><th>Модель</th><th>N</th><th>MAE</th><th>MAPE</th></tr>
+                        <tr><td>A</td><td>${abStats.variant_A.model_name}</td><td>${abStats.variant_A.count}</td><td>${abStats.variant_A.mae}</td><td>${abStats.variant_A.mape}%</td></tr>
+                        <tr><td>B</td><td>${abStats.variant_B.model_name}</td><td>${abStats.variant_B.count}</td><td>${abStats.variant_B.mae}</td><td>${abStats.variant_B.mape}%</td></tr>
+                    </table>`;
+                    if (abStats.recommendation) abHtml += `<div class="note">${abStats.recommendation}</div>`;
+                    if (abStats.statistical_significance) {
+                        const sig = abStats.statistical_significance;
+                        abHtml += `<div class="note">p-value: ${sig.p_value} — ${sig.is_significant ? 'статистически значимо' : 'значимость не подтверждена'}</div>`;
+                    }
+                } else {
+                    abHtml += `<div class="note">${abStats.message || 'Пока недостаточно данных. Вызовите POST /api/ab-test/predict несколько раз, дождитесь наступления даты прогноза, затем POST /api/ab-test/refresh-actuals.'}</div>`;
+                }
+                document.getElementById('abTest').innerHTML = abHtml;
 
-                // Chart (история предсказаний)
                 const prediction = await fetch('/monitoring/api/prediction-test').then(r => r.json());
                 updateChart(prediction);
 
             } catch(e) {
-                document.getElementById('health').innerHTML = '<span class="status-error">❌ Ошибка</span>';
+                document.getElementById('health').innerHTML = '<span class="status-error">❌ Ошибка: ' + e.message + '</span>';
             }
         }
 
@@ -140,15 +150,15 @@
             const ctx = document.getElementById('predictionChart').getContext('2d');
             if (chart) { chart.destroy(); }
 
-            const labels = Object.keys(data.predictions);
-            const values = Object.values(data.predictions);
+            const labels = Object.keys(data.predictions || {});
+            const values = Object.values(data.predictions || {});
 
             chart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Предсказанные значения',
+                        label: 'Прогноз на завтра',
                         data: values,
                         backgroundColor: ['#48bb78', '#4299e1', '#ed8936'],
                         borderColor: '#2d3748',
@@ -158,15 +168,8 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            grid: { color: 'rgba(0,0,0,0.05)' }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(0,0,0,0.05)' } } }
                 }
             });
         }
@@ -176,4 +179,3 @@
     </script>
 </body>
 </html>
-
