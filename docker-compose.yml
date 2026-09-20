@@ -16,9 +16,6 @@ services:
     ports:
       - "8002:8000"
     environment:
-      # DATABASE_URL / MODEL_PATH used to be set here, pointing at
-      # infrastructure (a Postgres DB, a model directory) that no code in
-      # this image actually reads - see src/core/config.py.
       - REDIS_URL=redis://172.17.0.1:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
@@ -28,12 +25,19 @@ services:
       - OLLAMA_HOST=${OLLAMA_HOST:-http://172.17.0.1:11434}
       # tinyllama matches the app's own default (src/core/config.py,
       # src/infrastructure/rag/llm/ollama_client.py) - was llama3.2:3b
-      # here, a third, different default from either of those.
+      # here, a third, different default from either of those. On a
+      # 4GB-RAM VDS, stick to tinyllama or another 1-2B model: anything
+      # bigger competes with the app itself (pandas/lightgbm/xgboost) for
+      # the same RAM and will get OOM-killed alongside it.
       - OLLAMA_MODEL=${OLLAMA_MODEL:-tinyllama}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://172.17.0.1:11434}
       - USE_OLLAMA=${USE_OLLAMA:-True}
       - LLM_ENABLED=${LLM_ENABLED:-True}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # UVICORN_WORKERS defaults to 1 in the Dockerfile itself - each
+      # extra worker duplicates the whole process (pandas/numpy/
+      # lightgbm/xgboost already loaded) in RAM. Only raise this if you
+      # have real headroom to spare.
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-1}
     volumes:
       # Trained models are saved to "data/models" relative to the app's
       # /app working directory (ModelTrainer's and ForecastService's
@@ -59,12 +63,20 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Hard memory cap so this one container can never take down a small
+    # VDS by itself. `mem_limit`/`mem_reservation` are the classic
+    # docker-compose v1/v2 fields and are honoured by plain
+    # `docker compose up` (unlike `deploy.resources`, which some older
+    # Compose versions only apply under Swarm) - kept alongside `deploy`
+    # below so both old and new tooling enforce the same limit.
+    mem_limit: 768m
+    mem_reservation: 256m
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 768M
         reservations:
-          memory: 512M
+          memory: 256M
 
   prometheus:
     image: prom/prometheus:latest
@@ -78,6 +90,10 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      # Small VDS: cap how much disk/RAM Prometheus's own TSDB can use.
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=256MB'
+    mem_limit: 256m
     profiles:
       - monitoring
     networks:
@@ -94,6 +110,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    mem_limit: 256m
     profiles:
       - monitoring
     networks:

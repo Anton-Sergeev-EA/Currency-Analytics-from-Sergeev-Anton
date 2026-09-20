@@ -5,7 +5,12 @@ services:
       service: currency-analytics
     restart: always
     deploy:
-      replicas: 2
+      # Default is 1 replica: on a 4GB-RAM VDS there usually isn't
+      # headroom for a second full copy of the app (each replica is
+      # capped at 768MB by docker-compose.yml's mem_limit, on top of
+      # Redis, Ollama and nginx). Only raise REPLICAS if `free -h` shows
+      # you have several free GB and you actually need the throughput.
+      replicas: ${REPLICAS:-1}
       update_config:
         parallelism: 1
         delay: 10s
@@ -30,6 +35,7 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - currency-analytics
+    mem_limit: 64m
     networks:
       - analytics-network
     logging:
@@ -37,4 +43,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-        
