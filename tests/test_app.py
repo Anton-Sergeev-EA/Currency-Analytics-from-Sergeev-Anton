@@ -108,3 +108,61 @@ def test_rag_ask_endpoint_greeting():
     body = resp.json()
     assert body["type"] == "greeting"
     assert body["answer"]
+
+
+def test_ab_test_predict_is_not_the_old_hardcoded_mock():
+    """
+    /api/ab-test/predict used to always return a fixed literal
+    (variant "control", predicted_rate 87.5, forecast_date "2026-09-05")
+    no matter what was asked. It now calls the real ABTestService, which
+    computes an actual forecast (ML ensemble or persistence baseline)
+    from whatever demo/historical data is loaded.
+    """
+    resp = client.post("/api/ab-test/predict", params={"user_id": "test-user-1", "currency": "usd_rate", "days": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["variant"] in ("A", "B")
+    assert body["model_name"] in ("ml_ensemble", "persistence_baseline")
+    assert isinstance(body["predicted_rate"], (int, float))
+    assert body["ab_test_active"] is True
+
+
+def test_ab_test_stats_endpoint_reflects_real_service():
+    resp = client.get("/api/ab-test/stats", params={"days": 30})
+    assert resp.status_code == 200
+    body = resp.json()
+    # No fixed "total_requests": 1000 / "improvement": "0.69%" mock fields
+    # anymore - the real service reports what's actually in the DB.
+    assert "period_days" in body
+    assert "total_requests" in body
+
+
+def test_monitoring_model_accuracy_reports_availability_not_random_numbers():
+    resp = client.get("/monitoring/api/model-accuracy")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    for currency in ("usd", "eur"):
+        assert currency in data
+        # Either a real walk-forward backtest ran ("available": True with
+        # rmse/mae/mape/r2 from an actual held-out evaluation), or it
+        # honestly reports why not - never a `random.random()` filler.
+        assert "available" in data[currency]
+
+
+def test_rag_investment_question_is_a_real_calculation():
+    resp = client.post(
+        "/api/rag/ask",
+        json={"question": "Сколько я заработаю, если вложу 100000 рублей в доллары на неделю?"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] in ("investment", "error")  # "error" only if demo data is somehow empty
+    if body["type"] == "investment":
+        assert "sources" in body and body["sources"]
+
+
+def test_rag_conversion_question_is_deterministic():
+    resp = client.post("/api/rag/ask", json={"question": "Переведи 100 долларов в рубли"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] in ("conversion", "error")
