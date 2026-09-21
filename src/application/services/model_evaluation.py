@@ -54,7 +54,7 @@ class ModelEvaluator:
             return {"available": False, "reason": "no historical data"}
 
         df_features = self.feature_engineer.create_features(df)
-        feature_cols = [c for c in df_features.columns if c not in ["date", "usd_rate", "eur_rate"]]
+        feature_cols = [c for c in df_features.columns if c not in ["date"] + SUPPORTED_CURRENCIES]
         clean = df_features.dropna(subset=feature_cols + [currency]).reset_index(drop=True)
 
         if len(clean) < MIN_TRAIN_ROWS + TEST_DAYS:
