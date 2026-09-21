@@ -32,7 +32,15 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      # Real Let's Encrypt certs for anton-analytics.ru, managed on the
+      # host by scripts/init_letsencrypt.sh + certbot's own renewal
+      # timer - this container only reads them (same path both sides,
+      # so nginx.conf's ssl_certificate paths work unmodified).
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Webroot for the Let's Encrypt HTTP-01 challenge (nginx.conf's
+      # /.well-known/acme-challenge/ location) - shared with certbot on
+      # the host, which writes its proof files here.
+      - ./certbot-webroot:/var/www/certbot
     depends_on:
       - currency-analytics
     mem_limit: 64m

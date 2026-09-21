@@ -18,6 +18,11 @@
 
 # Логи и данные
 logs/
+
+# Let's Encrypt HTTP-01 challenge webroot (runtime files only, see
+# scripts/init_letsencrypt.sh) and any local self-signed cert leftovers.
+certbot-webroot/
+ssl/
 *.log
 /data/
 *.db

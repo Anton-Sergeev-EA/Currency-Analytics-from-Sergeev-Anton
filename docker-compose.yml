@@ -21,6 +21,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - CBR_API_URL=${CBR_API_URL:-https://www.cbr.ru/scripts/XML_daily.asp}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://anton-analytics.ru,https://www.anton-analytics.ru,http://localhost:8002,http://127.0.0.1:8002}
       - DATA_PATH=/app/data
       - OLLAMA_HOST=${OLLAMA_HOST:-http://172.17.0.1:11434}
       # tinyllama matches the app's own default (src/core/config.py,

@@ -58,6 +58,17 @@ class Settings(BaseSettings):
     # --- Logging ---
     LOG_LEVEL: str = "INFO"
 
+    # --- Public domain / CORS ---
+    # Comma-separated list of origins the browser is allowed to call the
+    # API from cross-origin. The templates in src/presentation/templates
+    # are served by this same app and call the API with relative paths
+    # (same-origin, so browsers never even consult this list for them);
+    # this only matters if something else - a separate frontend, a
+    # mobile app's webview, a tool hitting the API from another domain -
+    # calls it directly. Defaults cover the production domain plus local
+    # development; override via .env for a different deployment.
+    ALLOWED_ORIGINS: str = "https://anton-analytics.ru,https://www.anton-analytics.ru,http://localhost:8002,http://127.0.0.1:8002"
+
     # --- Ollama (local LLM) ---
     USE_OLLAMA: bool = True
     OLLAMA_BASE_URL: str = "http://172.17.0.1:11434"

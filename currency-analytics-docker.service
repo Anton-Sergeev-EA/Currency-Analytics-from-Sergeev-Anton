@@ -1,0 +1,40 @@
+# systemd unit for the Docker Compose deployment (docker-compose.yml +
+# docker-compose.prod.yml) at https://anton-analytics.ru.
+#
+# The app and nginx containers already carry `restart: always` /
+# `unless-stopped`, which is what actually brings them back up after a
+# crash or after `dockerd` restarts - this unit is the belt-and-suspenders
+# layer on top: it guarantees the stack is (re)applied from the current
+# compose files on every boot (e.g. after a fresh `git pull` changed a
+# compose file, or on the very first boot after cloning, before any
+# container has ever run to be "restarted"), and gives `systemctl
+# status/start/stop currency-analytics-docker` a single, obvious handle
+# for the whole stack.
+#
+# Install: see install-docker.sh, or manually:
+#   cp currency-analytics-docker.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now currency-analytics-docker
+#   systemctl enable docker   # so dockerd itself also survives a reboot
+#
+# Note the naming: this is unrelated to the pre-existing
+# currency_analytics.service (underscore), which runs the app directly
+# via a Python venv + uvicorn instead of Docker - use one deployment
+# method or the other, not both, to avoid two copies fighting over the
+# same port.
+[Unit]
+Description=Currency Analytics — Docker Compose stack (anton-analytics.ru)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/root/Currency-Analytics-from-Sergeev-Anton
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

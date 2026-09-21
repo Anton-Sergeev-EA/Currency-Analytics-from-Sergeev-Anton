@@ -30,9 +30,13 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
+# Restricted to the real deployment domain (anton-analytics.ru) plus local
+# dev by default (ALLOWED_ORIGINS in .env) - previously a hardcoded "*",
+# which the browser accepts for a same-origin app like this one but is
+# unnecessarily permissive once the app is reachable at a public domain.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
