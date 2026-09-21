@@ -84,6 +84,73 @@ The project defaults are tuned for a **4GB-RAM VDS with limited disk**:
 - Consider setting up **swap** (2GB+) on the VDS if you haven't, for
   short-lived spikes (e.g. Ollama inference while a model is training).
 
+## Deploying on a domain (anton-analytics.ru) with HTTPS
+
+The project is configured to be reachable at **https://anton-analytics.ru**.
+This describes the common case: a **shared VDS** that already runs a
+host-level nginx and already holds a valid Let's Encrypt certificate for
+the domain (e.g. because another project or a previous version of this
+app lives on the same server) - not an HTTPS bootstrap from scratch.
+
+1. **Clone the repo and start the stack on its own port:**
+
+   ```bash
+   git clone https://github.com/Anton-Sergeev-EA/Currency-Analytics-from-Sergeev-Anton.git
+   cd Currency-Analytics-from-Sergeev-Anton
+   cp .env.example .env   # review SECRET_KEY/JWT_SECRET_KEY before real use
+   docker compose up -d --build
+   ```
+
+   The app listens on `127.0.0.1:8002` (see `docker-compose.yml`), so it
+   never competes for ports 80/443 with anything else already running
+   on the server.
+
+2. **Point the existing nginx site at it.** Edit the site's config
+   (e.g. `/etc/nginx/sites-available/anton-analytics`) so its
+   `proxy_pass` targets `http://127.0.0.1:8002`, then:
+
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+   No certbot run is needed here - the certificate already covers the
+   domain.
+
+3. **Verify, then retire the previous version:**
+
+   ```bash
+   curl -I https://anton-analytics.ru/health
+   ```
+
+   Open https://anton-analytics.ru and
+   https://anton-analytics.ru/monitoring/dashboard, confirm both work,
+   and only then stop whatever service used to answer on this domain.
+
+### Startup and recovery on reboot
+
+- The `currency-analytics` container runs with `restart: unless-stopped`
+  (`docker-compose.yml`) and a `healthcheck` (`GET /health` every 30s) -
+  Docker restarts it on crash and reports it unhealthy on failure.
+- `systemctl enable docker` (usually already on for a server that's
+  been running other Docker workloads) makes sure the daemon - and
+  every `restart: unless-stopped` container - comes back after a
+  reboot.
+- CORS is controlled by `ALLOWED_ORIGINS` in `.env`/`docker-compose.yml`
+  (defaults to the production domain + local dev), not a hardcoded `*`.
+
+Useful commands:
+
+```bash
+docker compose ps
+docker compose logs -f
+sudo nginx -T | grep -A5 anton-analytics   # confirm which port nginx proxies to
+```
+
+> Provisioning HTTPS on a bare server with no existing nginx or
+> certificate is a different, less common scenario. `docker-compose.prod.yml`
+> and `scripts/init_letsencrypt.sh` are kept in the repo for that case,
+> but are not part of the anton-analytics.ru deployment described above.
+
 ## Quick start (Docker)
 
 ```bash

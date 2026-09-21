@@ -87,6 +87,75 @@ Prometheus, Grafana (опционально), nginx (прод).
   настроен — на случай кратковременных пиков (например, инференс
   Ollama во время обучения модели).
 
+## Деплой на домен anton-analytics.ru с HTTPS
+
+Проект настроен на публикацию по адресу **https://anton-analytics.ru**.
+Ниже описан обычный случай: **общий VDS**, на котором уже работает свой
+nginx на хосте и уже есть действующий сертификат Let's Encrypt для домена
+(например, потому что на этом же сервере живёт другой проект или
+предыдущая версия приложения) - а не развёртывание HTTPS с нуля.
+
+1. **Клонируйте репозиторий и запустите стек на отдельном порту:**
+
+   ```bash
+   git clone https://github.com/Anton-Sergeev-EA/Currency-Analytics-from-Sergeev-Anton.git
+   cd Currency-Analytics-from-Sergeev-Anton
+   cp .env.example .env   # обязательно проверьте SECRET_KEY/JWT_SECRET_KEY
+   docker compose up -d --build
+   ```
+
+   Приложение слушает `127.0.0.1:8002` (см. `docker-compose.yml`),
+   поэтому не конкурирует за порты 80/443 с тем, что уже работает на
+   сервере.
+
+2. **Перенаправьте существующий nginx-сайт на него.** В конфиге сайта
+   (например, `/etc/nginx/sites-available/anton-analytics`) поменяйте
+   `proxy_pass` на `http://127.0.0.1:8002`, затем:
+
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+   Запускать certbot не нужно - сертификат уже покрывает домен.
+
+3. **Проверьте и только потом выключайте старую версию:**
+
+   ```bash
+   curl -I https://anton-analytics.ru/health
+   ```
+
+   Откройте https://anton-analytics.ru и
+   https://anton-analytics.ru/monitoring/dashboard, убедитесь, что всё
+   работает, и только после этого останавливайте сервис, который раньше
+   отвечал на этом домене.
+
+### Автозапуск и восстановление после перезагрузки
+
+- Контейнер `currency-analytics` запущен с `restart: unless-stopped`
+  (`docker-compose.yml`) и `healthcheck` (`GET /health` каждые 30
+  секунд) - Docker перезапускает его при падении и помечает нездоровым
+  при сбое.
+- `systemctl enable docker` (обычно уже включено, если на сервере и так
+  крутятся другие Docker-проекты) гарантирует, что демон - и все
+  контейнеры с `restart: unless-stopped` - поднимутся после
+  перезагрузки.
+- CORS управляется переменной `ALLOWED_ORIGINS` в `.env`/
+  `docker-compose.yml` (по умолчанию - продакшн-домен + локальная
+  разработка), а не захардкоженной `*`.
+
+Полезные команды:
+
+```bash
+docker compose ps
+docker compose logs -f
+sudo nginx -T | grep -A5 anton-analytics   # проверить, на какой порт проксирует nginx
+```
+
+> Развёртывание HTTPS на чистом сервере без существующего nginx и
+> сертификата - другой, более редкий сценарий; `docker-compose.prod.yml`
+> и `scripts/init_letsencrypt.sh` остаются в репозитории именно для
+> него, но не используются в описанном выше деплое anton-analytics.ru.
+
 ## Быстрый старт (Docker)
 
 ```bash
