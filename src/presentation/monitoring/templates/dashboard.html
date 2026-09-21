@@ -1,181 +1,318 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru" data-theme="dark">
 <head>
-    <title>Мониторинг системы — Currency Analytics</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; color: #1a1a2e; }
-        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #1a1a2e; }
-        h1 a { font-size: 14px; margin-left: 12px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .status-ok { color: #48bb78; }
-        .status-error { color: #fc8181; }
-        .metric { font-size: 24px; font-weight: bold; }
-        .metric-label { color: #718096; font-size: 14px; }
-        .note { color: #718096; font-size: 12px; margin-top: 8px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background: #f7fafc; font-weight: 600; }
-        .good { color: #48bb78; }
-        .medium { color: #ed8936; }
-        .bad { color: #fc8181; }
-        .chart-container { height: 200px; margin-top: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мониторинг — Currency Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    :root {
+        --bg: #0a0b12;
+        --bg-glow-1: radial-gradient(circle at 12% 8%, rgba(99,102,241,0.28), transparent 45%);
+        --bg-glow-2: radial-gradient(circle at 88% 82%, rgba(34,211,238,0.20), transparent 45%);
+        --card-bg: rgba(255,255,255,0.045);
+        --card-border: rgba(255,255,255,0.09);
+        --text: #f3f4f8;
+        --text-muted: #9298b0;
+        --accent-a: #6366f1;
+        --accent-b: #22d3ee;
+        --accent-grad: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+        --good: #34d399;
+        --medium: #fbbf24;
+        --bad: #f87171;
+        --shadow: 0 8px 30px rgba(0,0,0,0.35);
+        --radius: 18px;
+        --blur: blur(18px);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: var(--bg);
+        background-image: var(--bg-glow-1), var(--bg-glow-2);
+        background-attachment: fixed;
+        color: var(--text);
+        min-height: 100vh;
+    }
+    a { color: inherit; }
+
+    .header {
+        padding: 22px 40px;
+        display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;
+        position: sticky; top: 0; z-index: 20;
+        background: color-mix(in srgb, var(--bg) 78%, transparent);
+        backdrop-filter: var(--blur);
+        border-bottom: 1px solid var(--card-border);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+        width: 38px; height: 38px; border-radius: 11px; background: var(--accent-grad);
+        display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+        box-shadow: 0 6px 18px rgba(99,102,241,0.35);
+    }
+    .brand h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    .brand .subtitle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+    .live-pill {
+        display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted);
+        padding: 6px 12px; border-radius: 20px; border: 1px solid var(--card-border);
+    }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: pulse 2s infinite; }
+    .live-dot.err { background: var(--bad); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,.5);} 50% { opacity: .6; box-shadow: 0 0 0 5px rgba(52,211,153,0);} }
+    .back-link {
+        font-size: 12.5px; color: var(--text-muted); text-decoration: none; padding: 6px 12px;
+        border: 1px solid var(--card-border); border-radius: 20px;
+    }
+    .back-link:hover { color: var(--text); border-color: var(--accent-a); }
+
+    .container { max-width: 1360px; margin: 0 auto; padding: 28px 40px 60px; }
+
+    .glass {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        backdrop-filter: var(--blur);
+        box-shadow: var(--shadow);
+    }
+    .card-pad { padding: 22px 24px; }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .card-title .hint { font-size: 10.5px; font-weight: 600; color: var(--accent-b); background: color-mix(in srgb, var(--accent-b) 14%, transparent); padding: 3px 9px; border-radius: 20px; letter-spacing: .02em; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+    .metric-box { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); }
+    .metric-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+    .metric-value { font-size: 22px; font-weight: 700; margin-top: 5px; }
+
+    .status-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .status-ok { color: var(--good); }
+    .status-error { color: var(--bad); }
+
+    .kv-list { display: flex; flex-direction: column; gap: 8px; }
+    .kv-row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent); }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-row .k { color: var(--text-muted); }
+    .kv-row .v { font-weight: 600; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13.5px; }
+    th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent); }
+    th { font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .badge { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge.good { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+    .badge.medium { background: color-mix(in srgb, var(--medium) 16%, transparent); color: var(--medium); }
+    .badge.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+    .badge.na { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+
+    .chart-container { height: 260px; position: relative; margin-top: 6px; }
+    .loading { text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px; }
+    .note { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
+
+    @media (max-width: 640px) {
+        .header, .container { padding-left: 18px; padding-right: 18px; }
+    }
+</style>
 </head>
 <body>
-    <h1>📊 Мониторинг системы <a href="/">← на главную</a></h1>
-    <div class="grid" id="dashboard">
-        <div class="card">
-            <h3>Статус системы</h3>
-            <div id="health">Загрузка...</div>
+
+<div class="header">
+    <div class="brand">
+        <div class="brand-mark">📊</div>
+        <div>
+            <h1>Мониторинг системы</h1>
+            <div class="subtitle">Currency Analytics · реальные метрики, без заглушек</div>
         </div>
-        <div class="card">
-            <h3>Модели</h3>
-            <div id="models">Загрузка...</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span class="live-pill"><span class="live-dot" id="liveDot"></span><span id="liveText">Проверка...</span></span>
+        <a class="back-link" href="/">← На главную</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="grid">
+        <div class="glass card-pad">
+            <div class="card-title"><span>Статус системы</span></div>
+            <div class="status-row" id="health">Загрузка...</div>
         </div>
-        <div class="card">
-            <h3>Текущие курсы</h3>
-            <div id="rates">Загрузка...</div>
+        <div class="glass card-pad">
+            <div class="card-title"><span>Модели</span><span class="hint">.joblib на диске</span></div>
+            <div class="kv-list" id="models">Загрузка...</div>
         </div>
-        <div class="card">
-            <h3>Качество данных</h3>
-            <div id="quality">Загрузка...</div>
+        <div class="glass card-pad">
+            <div class="card-title"><span>Текущие курсы</span><span class="hint">ЦБ РФ</span></div>
+            <div class="kv-list" id="rates">Загрузка...</div>
+        </div>
+        <div class="glass card-pad">
+            <div class="card-title"><span>Качество данных</span></div>
+            <div class="kv-list" id="quality">Загрузка...</div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>📈 Точность моделей (реальный walk-forward бэктест)</h3>
-        <div id="accuracyTable">Загрузка...</div>
-        <div class="note" id="accuracyNote"></div>
-    </div>
-
-    <div class="card">
-        <h3>🅰️🅱️ A/B-тест: ML-ансамбль (A) vs наивный прогноз (B)</h3>
-        <div id="abTest">Загрузка...</div>
-    </div>
-
-    <div class="card">
-        <h3>📊 Текущий прогноз на 1 день (продакшен-модель)</h3>
-        <div class="chart-container">
-            <canvas id="predictionChart"></canvas>
+    <div class="glass card-pad" style="margin-bottom:20px;">
+        <div class="card-title">
+            <span>Точность моделей</span>
+            <span class="hint">walk-forward бэктест, реальные данные</span>
         </div>
+        <div id="accuracyTable"><div class="loading">Загрузка...</div></div>
+        <div class="note">R² &gt; 0.85 — отлично, 0.70–0.85 — средне, ниже — требуется дообучение модели. Если модель ещё не обучена, используется статистический трендовый fallback, и точность здесь оценивает именно его.</div>
     </div>
 
-    <script>
-        let chart = null;
+    <div class="glass card-pad" style="margin-bottom:20px;">
+        <div class="card-title">
+            <span>Тест прогноза (1 день вперёд)</span>
+            <span class="hint">продакшен-модель или fallback</span>
+        </div>
+        <div class="chart-container"><canvas id="predictionChart"></canvas></div>
+    </div>
 
-        function statusFor(r2) {
-            if (r2 > 0.85) return ['✅ Отлично', 'good'];
-            if (r2 > 0.5) return ['⚠️ Средне', 'medium'];
-            return ['❌ Слабо', 'bad'];
+    <div class="glass card-pad">
+        <div class="card-title"><span>Сводные метрики точности</span></div>
+        <div class="metric-grid" id="metrics">Загрузка...</div>
+    </div>
+</div>
+
+<script>
+    const CCY_META = {
+        usd: { label: 'USD', flag: '🇺🇸' },
+        eur: { label: 'EUR', flag: '🇪🇺' },
+        cny: { label: 'CNY', flag: '🇨🇳' },
+        gbp: { label: 'GBP', flag: '🇬🇧' },
+    };
+    let chart = null;
+
+    function statusClassFor(r2) {
+        if (r2 > 0.85) return { cls: 'good', label: '✅ Отлично' };
+        if (r2 > 0.70) return { cls: 'medium', label: '⚠️ Средне' };
+        return { cls: 'bad', label: '❌ Плохо' };
+    }
+
+    async function loadData() {
+        try {
+            await fetch('/monitoring/api/health').then(r => r.json());
+            document.getElementById('health').innerHTML = '<span class="status-ok">✅ Здоров</span>';
+            document.getElementById('liveDot').classList.remove('err');
+            document.getElementById('liveText').textContent = 'Система работает';
+        } catch (e) {
+            document.getElementById('health').innerHTML = '<span class="status-error">❌ Ошибка</span>';
+            document.getElementById('liveDot').classList.add('err');
+            document.getElementById('liveText').textContent = 'Нет связи';
         }
 
-        async function loadData() {
-            try {
-                await fetch('/monitoring/api/health').then(r => r.json());
-                document.getElementById('health').innerHTML = `<span class="status-ok">✅ Здоров</span>`;
+        try {
+            const models = await fetch('/monitoring/api/models').then(r => r.json());
+            document.getElementById('models').innerHTML = Object.entries(models.models).map(([code, m]) => `
+                <div class="kv-row">
+                    <span class="k">${CCY_META[code]?.flag || ''} ${code.toUpperCase()}</span>
+                    <span class="v" style="color:${m.loaded ? 'var(--good)' : 'var(--medium)'}">${m.loaded ? 'обучена' : 'fallback'}</span>
+                </div>
+            `).join('');
+        } catch (e) { document.getElementById('models').innerHTML = '<span class="status-error">Ошибка загрузки</span>'; }
 
-                const models = await fetch('/monitoring/api/models').then(r => r.json());
-                document.getElementById('models').innerHTML = Object.entries(models.models)
-                    .map(([k, v]) => `${k.toUpperCase()}: ${v.loaded ? '✅ обучена' : '⚠️ не обучена (fallback)'}`)
-                    .join('<br>');
+        try {
+            const rates = await fetch('/monitoring/api/current-rates').then(r => r.json());
+            document.getElementById('rates').innerHTML = Object.entries(rates.data).map(([code, val]) => `
+                <div class="kv-row">
+                    <span class="k">${CCY_META[code.toLowerCase()]?.flag || ''} ${code}/RUB</span>
+                    <span class="v">${val != null ? Number(val).toFixed(2) : '—'}</span>
+                </div>
+            `).join('');
+        } catch (e) { document.getElementById('rates').innerHTML = '<span class="status-error">Ошибка загрузки</span>'; }
 
-                const rates = await fetch('/monitoring/api/current-rates').then(r => r.json());
-                document.getElementById('rates').innerHTML = `USD: ${rates.data.USD ?? '—'}<br>EUR: ${rates.data.EUR ?? '—'}`;
+        try {
+            const quality = await fetch('/monitoring/api/data-quality').then(r => r.json());
+            document.getElementById('quality').innerHTML = `
+                <div class="kv-row"><span class="k">Записей (90 дн.)</span><span class="v">${quality.data.total_records}</span></div>
+                <div class="kv-row"><span class="k">Полнота</span><span class="v">${quality.data.completeness}%</span></div>
+                <div class="kv-row"><span class="k">Валюты</span><span class="v">${(quality.data.currencies || []).join(', ') || '—'}</span></div>
+            `;
+        } catch (e) { document.getElementById('quality').innerHTML = '<span class="status-error">Ошибка загрузки</span>'; }
 
-                const quality = await fetch('/monitoring/api/data-quality').then(r => r.json());
-                document.getElementById('quality').innerHTML = `
-                    Записей: ${quality.data.total_records}<br>
-                    Валюты: ${(quality.data.currencies || []).join(', ') || '—'}<br>
-                    Полнота: ${quality.data.completeness}%
+        let accuracyData = null;
+        try {
+            const accuracy = await fetch('/monitoring/api/model-accuracy').then(r => r.json());
+            accuracyData = accuracy.data;
+            let rows = '';
+            for (const [key, value] of Object.entries(accuracy.data)) {
+                const meta = CCY_META[key] || { label: key.toUpperCase(), flag: '' };
+                if (!value.available) {
+                    rows += `<tr><td><strong>${meta.flag} ${meta.label}</strong></td><td colspan="4" style="color:var(--text-muted);">${value.reason || 'недоступно'}</td><td><span class="badge na">Н/Д</span></td></tr>`;
+                    continue;
+                }
+                const st = statusClassFor(value.r2);
+                rows += `
+                    <tr>
+                        <td><strong>${meta.flag} ${meta.label}</strong></td>
+                        <td>${value.rmse.toFixed(4)}</td>
+                        <td>${value.mae.toFixed(4)}</td>
+                        <td>${value.mape.toFixed(2)}%</td>
+                        <td>${value.r2.toFixed(4)}</td>
+                        <td><span class="badge ${st.cls}">${st.label}</span></td>
+                    </tr>
                 `;
-
-                const accuracy = await fetch('/monitoring/api/model-accuracy').then(r => r.json());
-                let tableHtml = `<table>
-                    <tr><th>Валюта</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Статус</th></tr>`;
-                let noteText = '';
-                for (const [key, value] of Object.entries(accuracy.data)) {
-                    if (!value.available) {
-                        tableHtml += `<tr><td><strong>${key.toUpperCase()}</strong></td><td colspan="5">${value.reason || 'недоступно'}</td></tr>`;
-                        continue;
-                    }
-                    const [status, statusClass] = statusFor(value.r2);
-                    tableHtml += `
-                        <tr>
-                            <td><strong>${key.toUpperCase()}</strong></td>
-                            <td>${value.rmse.toFixed(4)}</td>
-                            <td>${value.mae.toFixed(4)}</td>
-                            <td>${value.mape.toFixed(2)}%</td>
-                            <td>${value.r2.toFixed(4)}</td>
-                            <td class="${statusClass}">${status}</td>
-                        </tr>
-                    `;
-                    noteText = value.method || noteText;
-                }
-                tableHtml += `</table>`;
-                document.getElementById('accuracyTable').innerHTML = tableHtml;
-                document.getElementById('accuracyNote').textContent = noteText
-                    ? `Методология: ${noteText}. Кэшируется на несколько часов.`
-                    : '';
-
-                const abStatus = await fetch('/api/ab-test/status').then(r => r.json());
-                const abStats = await fetch('/api/ab-test/stats?days=30').then(r => r.json());
-                let abHtml = `<p>Разбивка трафика: A ${(abStatus.traffic_split.A * 100).toFixed(0)}% / B ${(abStatus.traffic_split.B * 100).toFixed(0)}%</p>`;
-                if (abStats.variant_A && abStats.variant_B) {
-                    abHtml += `<table>
-                        <tr><th>Вариант</th><th>Модель</th><th>N</th><th>MAE</th><th>MAPE</th></tr>
-                        <tr><td>A</td><td>${abStats.variant_A.model_name}</td><td>${abStats.variant_A.count}</td><td>${abStats.variant_A.mae}</td><td>${abStats.variant_A.mape}%</td></tr>
-                        <tr><td>B</td><td>${abStats.variant_B.model_name}</td><td>${abStats.variant_B.count}</td><td>${abStats.variant_B.mae}</td><td>${abStats.variant_B.mape}%</td></tr>
-                    </table>`;
-                    if (abStats.recommendation) abHtml += `<div class="note">${abStats.recommendation}</div>`;
-                    if (abStats.statistical_significance) {
-                        const sig = abStats.statistical_significance;
-                        abHtml += `<div class="note">p-value: ${sig.p_value} — ${sig.is_significant ? 'статистически значимо' : 'значимость не подтверждена'}</div>`;
-                    }
-                } else {
-                    abHtml += `<div class="note">${abStats.message || 'Пока недостаточно данных. Вызовите POST /api/ab-test/predict несколько раз, дождитесь наступления даты прогноза, затем POST /api/ab-test/refresh-actuals.'}</div>`;
-                }
-                document.getElementById('abTest').innerHTML = abHtml;
-
-                const prediction = await fetch('/monitoring/api/prediction-test').then(r => r.json());
-                updateChart(prediction);
-
-            } catch(e) {
-                document.getElementById('health').innerHTML = '<span class="status-error">❌ Ошибка: ' + e.message + '</span>';
             }
-        }
+            document.getElementById('accuracyTable').innerHTML = `
+                <table>
+                    <tr><th>Валюта</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Статус</th></tr>
+                    ${rows}
+                </table>
+            `;
+        } catch (e) { document.getElementById('accuracyTable').innerHTML = '<span class="status-error">Ошибка загрузки</span>'; }
 
-        function updateChart(data) {
-            const ctx = document.getElementById('predictionChart').getContext('2d');
-            if (chart) { chart.destroy(); }
+        try {
+            const available = accuracyData ? Object.values(accuracyData).filter(v => v.available) : [];
+            if (available.length) {
+                const avg = key => available.reduce((s, v) => s + v[key], 0) / available.length;
+                document.getElementById('metrics').innerHTML = `
+                    <div class="metric-box"><div class="metric-label">Средняя MAE</div><div class="metric-value">${avg('mae').toFixed(4)}</div></div>
+                    <div class="metric-box"><div class="metric-label">Средняя RMSE</div><div class="metric-value">${avg('rmse').toFixed(4)}</div></div>
+                    <div class="metric-box"><div class="metric-label">Средняя MAPE</div><div class="metric-value">${avg('mape').toFixed(2)}%</div></div>
+                    <div class="metric-box"><div class="metric-label">Средний R²</div><div class="metric-value">${avg('r2').toFixed(4)}</div></div>
+                `;
+            } else {
+                document.getElementById('metrics').innerHTML = '<div class="loading">Нет валют с достаточной историей для бэктеста</div>';
+            }
+        } catch (e) { document.getElementById('metrics').innerHTML = '<span class="status-error">Ошибка</span>'; }
 
-            const labels = Object.keys(data.predictions || {});
-            const values = Object.values(data.predictions || {});
+        try {
+            const prediction = await fetch('/monitoring/api/prediction-test').then(r => r.json());
+            updateChart(prediction);
+        } catch (e) { console.error(e); }
+    }
 
-            chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Прогноз на завтра',
-                        data: values,
-                        backgroundColor: ['#48bb78', '#4299e1', '#ed8936'],
-                        borderColor: '#2d3748',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: false, grid: { color: 'rgba(0,0,0,0.05)' } } }
+    function updateChart(data) {
+        const ctx = document.getElementById('predictionChart').getContext('2d');
+        if (chart) { chart.destroy(); }
+
+        const entries = Object.entries(data.predictions || {});
+        const labels = entries.map(([k]) => CCY_META[k]?.label || k.toUpperCase());
+        const values = entries.map(([, v]) => v);
+        const colors = ['#6366f1', '#22d3ee', '#f59e0b', '#34d399'];
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Прогноз на 1 день',
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 8,
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#9298b0' } },
+                    y: { beginAtZero: false, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9298b0' } }
                 }
-            });
-        }
+            }
+        });
+    }
 
-        loadData();
-        setInterval(loadData, 30000);
-    </script>
+    loadData();
+    setInterval(loadData, 30000);
+</script>
 </body>
 </html>
