@@ -32,10 +32,13 @@ logger = logging.getLogger(__name__)
 
 # CBR's DailyInfoWebServ SOAP service - documented at
 # https://www.cbr.ru/development/DWS/ - KeyRate(fromDate, ToDate) returns
-# a small dataset with one row per date the key rate *changed* (it's not
-# a daily series - it only moves a handful of times a year), so this is
-# naturally sparse. Callers merge it onto a daily frame with an as-of
-# ("effective as of this date") join, not a plain equi-join.
+# one row per DAY in the requested range (not one row per rate change,
+# despite the method name - confirmed empirically: a 3-year request came
+# back with ~750 rows but only 13 distinct rate values), so most rows are
+# just repeating the same figure as the day before. Callers still merge
+# it onto the training frame with an as-of join rather than a plain
+# equi-join - harmless here since it's already dense, but correct even
+# if CBR ever changes this endpoint back to sparse change-only rows.
 _KEY_RATE_URL = "https://www.cbr.ru/DailyInfoWebServ/DailyInfo.asmx"
 _KEY_RATE_ENVELOPE = """<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -53,10 +56,11 @@ _KEY_RATE_ENVELOPE = """<?xml version="1.0" encoding="utf-8"?>
 async def fetch_key_rate(
     session: aiohttp.ClientSession, start: datetime, end: datetime
 ) -> Dict[str, float]:
-    """Returns {"dd.mm.yyyy": key_rate_percent} for every date the rate
-    changed within [start, end] - sparse by construction. Never raises;
-    returns {} on any failure so training can proceed without this
-    feature rather than crashing.
+    """Returns {"dd.mm.yyyy": key_rate_percent} for every day within
+    [start, end] CBR has a rate on record for (typically one row per
+    calendar day, not just days the rate changed - see module docstring).
+    Never raises; returns {} on any failure so training can proceed
+    without this feature rather than crashing.
     """
     body = _KEY_RATE_ENVELOPE.format(
         from_date=start.strftime("%Y-%m-%d"), to_date=end.strftime("%Y-%m-%d")
@@ -102,7 +106,11 @@ async def fetch_key_rate(
                     rates[date_val.strftime("%d.%m.%Y")] = rate_val
 
         if rates:
-            logger.info("Fetched %d CBR key rate change(s)", len(rates))
+            distinct = len(set(rates.values()))
+            logger.info(
+                "Fetched %d CBR key rate row(s) covering %d distinct rate value(s)",
+                len(rates), distinct,
+            )
         else:
             logger.warning(
                 "CBR key rate response parsed but yielded 0 rows - "
