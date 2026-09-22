@@ -187,6 +187,12 @@ class EnsembleModel:
         self.tuned_params_: dict[str, dict] = {}
         # Equal weights until fit() (re)computes them from CV performance.
         self._weights: dict[str, float] = {name: 1.0 / len(self._models) for name in self._models}
+        # Populated by fit() - each candidate's walk-forward CV MAE, the
+        # same number its ensemble weight was derived from. Public so
+        # callers (train_models.py's MLflow logging, in particular) can
+        # report per-candidate performance without reaching into the
+        # private _weights/cv_mae_by_model locals inside fit().
+        self.cv_mae_: dict[str, float] = {}
 
     def fit(self, X: pd.DataFrame, y: pd.Series, tune: bool = True) -> "EnsembleModel":
         logger.info("Fitting ensemble (%d candidate model(s)) on %d rows", len(self._models), len(X))
@@ -261,10 +267,17 @@ class EnsembleModel:
         else:
             self._weights = {name: 1.0 / len(self._models) for name in self._models}
 
+        self.cv_mae_ = cv_mae_by_model
+
         in_sample_pred = self._average_predict(X)
         self._residuals = np.asarray(y) - in_sample_pred
         self._fitted = True
         return self
+
+    @property
+    def weights(self) -> dict[str, float]:
+        """Each candidate model's ensemble weight (read-only copy)."""
+        return dict(self._weights)
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         self._check_fitted()

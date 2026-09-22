@@ -33,6 +33,11 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-tinyllama}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://172.17.0.1:11434}
       - USE_OLLAMA=${USE_OLLAMA:-True}
+      # MLflow tracking server runs as its own systemd service on the
+      # host (outside Docker, outside this repo) - see src/core/config.py
+      # for why 172.17.0.1 (the Docker bridge gateway) is the default.
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://172.17.0.1:5000}
+      - MLFLOW_EXPERIMENT_NAME=${MLFLOW_EXPERIMENT_NAME:-currency-forecast}
       - LLM_ENABLED=${LLM_ENABLED:-True}
       # UVICORN_WORKERS defaults to 1 in the Dockerfile itself - each
       # extra worker duplicates the whole process (pandas/numpy/

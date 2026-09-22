@@ -56,6 +56,10 @@ class ModelTrainer:
             lag1_col = f"{target}_lag_1"
             model = EnsembleModel(target_lag1_column=lag1_col if lag1_col in feature_cols else None)
             model.fit(X, y)
+            # Not persisted via save()/load() (joblib bundle only stores
+            # what predict() needs) - just a runtime attribute for this
+            # same process to report to MLflow (see train_models.py).
+            model.n_train_rows = len(X)
 
             save_path = os.path.join(self.models_dir, f"{target}_model.joblib")
             model.save(save_path)

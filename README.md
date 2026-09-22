@@ -333,6 +333,35 @@ python scripts/update_ab_actual_rates.py
 `prometheus`/`grafana` are an optional Compose profile (`monitoring`),
 not required for the app to work.
 
+## Experiment tracking (MLflow)
+
+Every `train_models.py` run logs two MLflow runs per currency:
+`train-{currency}` (train row count, each ensemble candidate's CV MAE and
+final weight, tuned hyperparameters) and `backtest-{short_code}` (the
+same walk-forward `rmse`/`mae`/`mape`/`r2` the console output and the
+monitoring dashboard already show, plus the naive-baseline comparison).
+See `src/infrastructure/ml/tracking.py`.
+
+The MLflow tracking **server itself is not part of this repo or the
+Docker stack** - on the production VDS it runs as its own systemd
+service (own venv, own sqlite backing store), independent of everything
+`docker-compose.yml` manages. `MLFLOW_TRACKING_URI` (default
+`http://172.17.0.1:5000`, the Docker bridge gateway - the same way this
+container already reaches Redis and Ollama on the host) just points at
+it. Set it to an empty string to turn logging off entirely; a blank URI
+or an unreachable server are both handled the same way - a skipped log
+with a warning, never a failed training run. A short HTTP timeout
+(`MLFLOW_HTTP_REQUEST_TIMEOUT=5`, one retry) keeps a down MLflow server
+from turning into a multi-minute hang.
+
+To browse it, tunnel to the VDS and open the UI locally (it isn't
+exposed on the public domain):
+
+```bash
+ssh -L 5001:127.0.0.1:5000 root@<your-vds-ip>
+# then open http://127.0.0.1:5001 in a browser
+```
+
 ## Security notes
 
 A real security review of this codebase found and fixed one concrete

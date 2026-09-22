@@ -7,6 +7,7 @@ from src.common.logger.logger import get_logger
 from src.core.constants import DEFAULT_TRAINING_WINDOW_DAYS, SUPPORTED_CURRENCIES
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.trainers.trainer import ModelTrainer
+from src.infrastructure.ml.tracking import log_backtest_run, log_training_run
 
 logger = get_logger("train_models")
 
@@ -61,6 +62,11 @@ async def main():
 
     print(f"\nTrained and saved {len(trained)} model(s): {', '.join(trained.keys())}")
 
+    # Log each trained model to MLflow (no-op if MLFLOW_TRACKING_URI is
+    # blank or the server can't be reached - see tracking.py's docstring).
+    for currency, model in trained.items():
+        log_training_run(currency, model)
+
     if not args.skip_eval:
         print("\nRunning walk-forward backtest (held-out last 20 days, per currency)...")
         evaluator = ModelEvaluator()
@@ -71,6 +77,7 @@ async def main():
             if not metrics.get("available"):
                 print(f"  {currency}: backtest unavailable ({metrics.get('reason')})")
                 continue
+            log_backtest_run(currency, metrics)
             baseline = metrics["baseline"]
             verdict = "beats naive baseline" if metrics["beats_naive_baseline"] else "DOES NOT beat naive baseline"
             windows = metrics.get("windows_evaluated", 1)

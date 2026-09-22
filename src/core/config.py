@@ -80,6 +80,19 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "tinyllama"
     LLM_ENABLED: bool = True
 
+    # --- MLflow experiment tracking (optional) ---
+    # The tracking server itself is NOT part of this repo - it runs as
+    # its own systemd service on the VDS (own venv, own sqlite backing
+    # store), entirely independent of this app's Docker container. This
+    # only points train_models.py at it. 172.17.0.1 is the Docker bridge
+    # gateway - the same way this container already reaches Redis and
+    # Ollama on the host (see REDIS_URL/OLLAMA_BASE_URL above). Set to ""
+    # to disable logging entirely (e.g. local dev with no MLflow server
+    # running) - train_models.py treats a blank URI, and any connection
+    # failure to a non-blank one, as "skip logging, don't fail training".
+    MLFLOW_TRACKING_URI: str = "http://172.17.0.1:5000"
+    MLFLOW_EXPERIMENT_NAME: str = "currency-forecast"
+
 
 @lru_cache()
 def get_settings() -> Settings:
