@@ -121,7 +121,16 @@ class ModelEvaluator:
                 # the hyperparameter search; earlier windows use plain
                 # defaults so N_WINDOWS backtests don't cost N_WINDOWS times
                 # the tuning budget on a memory-capped VDS.
-                model = EnsembleModel()
+                #
+                # Same naive-persistence ensemble candidate as production
+                # training (see ensemble.py's module docstring) - the
+                # backtest should honestly reflect what actually gets
+                # deployed, not a version of the model with a candidate
+                # quietly left out.
+                lag1_col = f"{currency}_lag_1"
+                model = EnsembleModel(
+                    target_lag1_column=lag1_col if lag1_col in feature_cols else None
+                )
                 model.fit(train[feature_cols], train[currency], tune=(w == 0))
                 preds = model.predict(test[feature_cols])
                 actual = test[currency].to_numpy()

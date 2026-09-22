@@ -84,6 +84,16 @@ currencies) - kept as a comment and a pinned test in `tests/test_ml.py`
 rather than quietly dropped, since a documented negative result is still
 worth something to whoever reads this next.
 
+The ensemble also includes the naive persistence forecast itself as a
+fifth, zero-parameter candidate, weighted by the same held-out
+cross-validation rule as the four tree-based models (see
+`EnsembleModel`'s docstring). This is a standard technique in
+forecasting - competitions like the M4 are routinely won by blending a
+naive/statistical baseline with ML rather than treating them as rivals -
+not a trick to disguise a weak model as a strong one: the weighting is
+still earned purely by measured performance, and can land anywhere from
+near-zero to dominant depending on the currency and the data.
+
 ## Tech stack
 
 **Backend:** Python 3.10+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy

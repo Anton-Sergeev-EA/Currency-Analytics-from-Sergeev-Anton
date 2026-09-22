@@ -49,7 +49,12 @@ class ModelTrainer:
             X = clean_df[feature_cols]
             y = clean_df[target]
 
-            model = EnsembleModel()
+            # Give the ensemble the option to fall back on a naive
+            # "tomorrow = today" candidate for this currency, weighted by
+            # its own CV performance just like the tree-based models -
+            # see the module docstring in ensemble.py for why.
+            lag1_col = f"{target}_lag_1"
+            model = EnsembleModel(target_lag1_column=lag1_col if lag1_col in feature_cols else None)
             model.fit(X, y)
 
             save_path = os.path.join(self.models_dir, f"{target}_model.joblib")

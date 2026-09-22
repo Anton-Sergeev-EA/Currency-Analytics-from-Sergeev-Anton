@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from src.infrastructure.ml.features.engineer import FeatureEngineer
-from src.infrastructure.ml.models.ensemble import EnsembleModel
+from src.infrastructure.ml.models.ensemble import NAIVE_MODEL_NAME, EnsembleModel, _NaivePersistenceModel
 
 
 def _synthetic_frame(n: int = 120) -> pd.DataFrame:
@@ -112,3 +112,52 @@ def test_ensemble_model_predict_before_fit_raises_clearly():
         assert False, "expected RuntimeError for predict() before fit()/load()"
     except RuntimeError:
         pass
+
+
+def test_naive_persistence_model_predicts_the_lag1_column_verbatim():
+    naive = _NaivePersistenceModel(lag1_column="usd_rate_lag_1")
+    X = pd.DataFrame({"usd_rate_lag_1": [80.0, 81.5, 79.25], "other_feature": [1, 2, 3]})
+    naive.fit(X)  # no-op, but must not raise
+    assert list(naive.predict(X)) == [80.0, 81.5, 79.25]
+
+
+def test_ensemble_model_includes_naive_candidate_when_lag1_column_given():
+    rng = np.random.default_rng(4)
+    # A near-random-walk series: today ~= yesterday + small noise, so the
+    # naive "tomorrow = today" candidate should be genuinely competitive
+    # here, same as the real currencies this project forecasts.
+    n = 150
+    level = 100 + np.cumsum(rng.normal(0, 0.2, n))
+    X = pd.DataFrame({
+        "target_lag_1": np.concatenate([[level[0]], level[:-1]]),
+        "noise_feature": rng.normal(size=n),
+    })
+    y = pd.Series(level)
+
+    model = EnsembleModel(target_lag1_column="target_lag_1")
+    model.fit(X.iloc[:120], y.iloc[:120], tune=False)
+
+    assert NAIVE_MODEL_NAME in model._models
+    assert NAIVE_MODEL_NAME in model._weights
+    assert abs(sum(model._weights.values()) - 1.0) < 1e-9
+
+    preds = model.predict(X.iloc[120:])
+    assert len(preds) == 30
+    # A blended prediction on a near-random-walk series should stay close
+    # to the actual level, not diverge wildly.
+    assert np.corrcoef(preds, y.iloc[120:])[0, 1] > 0.8
+
+
+def test_ensemble_model_drops_naive_candidate_if_column_missing_at_fit_time():
+    rng = np.random.default_rng(5)
+    X = pd.DataFrame({"f1": rng.normal(size=80)})
+    y = X["f1"] * 2 + rng.normal(scale=0.1, size=80)
+
+    # Column name doesn't exist in X - fit() must not crash, it should
+    # just drop the naive candidate for this fit rather than KeyError.
+    model = EnsembleModel(target_lag1_column="does_not_exist_lag_1")
+    model.fit(X, y, tune=False)
+
+    assert NAIVE_MODEL_NAME not in model._models
+    preds = model.predict(X)
+    assert len(preds) == len(X)
