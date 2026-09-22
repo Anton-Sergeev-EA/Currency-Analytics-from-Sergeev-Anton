@@ -33,6 +33,18 @@ It is a simplification (in-sample residuals tend to slightly
 underestimate true out-of-sample uncertainty), documented here rather
 than hidden, so it can be swapped for out-of-fold residuals later without
 changing any caller.
+
+**Hyperparameter tuning**: each base model used to fit with plain library
+defaults, which for ~500 rows and 30+ correlated lag/rolling features is
+a recipe for overfitting the training set and doing no better than noise
+out of sample (the walk-forward backtest in model_evaluation.py first
+surfaced this as a negative R2). `fit()` now runs a small, bounded
+`RandomizedSearchCV` per base model with `TimeSeriesSplit` folds instead
+of a random/shuffled split — shuffling would let a fold "predict the
+past from the future", which is not a real forecasting scenario. The
+search space and iteration count are kept deliberately small (a handful
+of candidates x a few folds) so this stays fast and memory-light enough
+for a small VDS; it is not an exhaustive grid search.
 """
 from __future__ import annotations
 
@@ -44,9 +56,48 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 from xgboost import XGBRegressor
 
 logger = logging.getLogger(__name__)
+
+# Small, bounded search spaces - enough to move off library defaults
+# (which tend to overfit a few hundred noisy rows) without turning every
+# training run into a multi-minute grid search on a memory-capped VDS.
+_PARAM_DISTRIBUTIONS = {
+    "lightgbm": {
+        "n_estimators": [50, 100, 200],
+        "max_depth": [3, 5, 7, -1],
+        "learning_rate": [0.01, 0.05, 0.1],
+        "num_leaves": [7, 15, 31],
+        "min_child_samples": [5, 10, 20],
+    },
+    "xgboost": {
+        "n_estimators": [50, 100, 200],
+        "max_depth": [2, 3, 5, 7],
+        "learning_rate": [0.01, 0.05, 0.1],
+        "subsample": [0.7, 0.85, 1.0],
+        "reg_lambda": [1.0, 5.0, 10.0],
+    },
+    "random_forest": {
+        "n_estimators": [50, 100, 200],
+        "max_depth": [3, 5, 10, None],
+        "min_samples_leaf": [1, 3, 5, 10],
+    },
+    "gradient_boosting": {
+        "n_estimators": [50, 100, 200],
+        "max_depth": [2, 3, 5],
+        "learning_rate": [0.01, 0.05, 0.1],
+        "min_samples_leaf": [1, 5, 10],
+    },
+}
+
+# Below this many rows, TimeSeriesSplit folds get too small to mean
+# anything - fall back to plain fit() with library defaults instead of
+# tuning on noise.
+_MIN_ROWS_TO_TUNE = 60
+_TUNE_CV_SPLITS = 3
+_TUNE_N_ITER = 8
 
 
 class EnsembleModel:
@@ -55,19 +106,40 @@ class EnsembleModel:
         self._models: dict[str, object] = {
             "lightgbm": LGBMRegressor(random_state=random_state, verbosity=-1),
             "xgboost": XGBRegressor(random_state=random_state, verbosity=0),
-            "random_forest": RandomForestRegressor(random_state=random_state, n_jobs=-1),
+            "random_forest": RandomForestRegressor(random_state=random_state, n_jobs=1),
             "gradient_boosting": GradientBoostingRegressor(random_state=random_state),
         }
         self._feature_columns: Optional[list[str]] = None
         self._residuals: Optional[np.ndarray] = None
         self._fitted = False
+        self.tuned_params_: dict[str, dict] = {}
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "EnsembleModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series, tune: bool = True) -> "EnsembleModel":
         logger.info("Fitting ensemble (%d base models) on %d rows", len(self._models), len(X))
         self._feature_columns = list(X.columns)
 
+        can_tune = tune and len(X) >= _MIN_ROWS_TO_TUNE
+        n_splits = min(_TUNE_CV_SPLITS, max(2, len(X) // 30)) if can_tune else 0
+
         for name, model in self._models.items():
-            model.fit(X, y)
+            if can_tune:
+                search = RandomizedSearchCV(
+                    model,
+                    _PARAM_DISTRIBUTIONS[name],
+                    n_iter=_TUNE_N_ITER,
+                    cv=TimeSeriesSplit(n_splits=n_splits),
+                    scoring="neg_mean_absolute_error",
+                    random_state=self.random_state,
+                    n_jobs=1,
+                )
+                search.fit(X, y)
+                self._models[name] = search.best_estimator_
+                self.tuned_params_[name] = search.best_params_
+                logger.info(
+                    "Tuned %s: %s (CV MAE=%.4f)", name, search.best_params_, -search.best_score_
+                )
+            else:
+                model.fit(X, y)
 
         in_sample_pred = self._average_predict(X)
         self._residuals = np.asarray(y) - in_sample_pred
@@ -106,6 +178,7 @@ class EnsembleModel:
                 "feature_columns": self._feature_columns,
                 "residuals": self._residuals,
                 "random_state": self.random_state,
+                "tuned_params": self.tuned_params_,
             },
             path,
         )
@@ -117,6 +190,7 @@ class EnsembleModel:
         self._feature_columns = bundle["feature_columns"]
         self._residuals = bundle["residuals"]
         self.random_state = bundle.get("random_state", self.random_state)
+        self.tuned_params_ = bundle.get("tuned_params", {})
         self._fitted = True
         logger.info("EnsembleModel loaded from %s", path)
         return self

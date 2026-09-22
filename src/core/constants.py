@@ -70,3 +70,14 @@ def column_name(short: str) -> str:
     """"usd" -> "usd_rate" """
     short = short.lower().strip()
     return short if short.endswith("_rate") else f"{short}_rate"
+
+
+# How much CBR history to train and backtest on. Shared between
+# train_models.py and model_evaluation.py's backtest so the two don't
+# silently disagree on what "the model" was trained on (train_models.py
+# used to request 90 days while the backtest fetched 365 - two different
+# training sets under one name). ~3 years of daily rates gives each
+# currency's model several hundred clean rows after the feature
+# engineer's lag/rolling warm-up, which four separate tree ensembles
+# actually need.
+DEFAULT_TRAINING_WINDOW_DAYS = 1095

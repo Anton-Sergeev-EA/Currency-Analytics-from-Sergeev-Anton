@@ -20,7 +20,7 @@ from typing import Any, Dict
 
 import numpy as np
 
-from src.core.constants import SUPPORTED_CURRENCIES, short_code
+from src.core.constants import DEFAULT_TRAINING_WINDOW_DAYS, SUPPORTED_CURRENCIES, short_code
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.features.engineer import FeatureEngineer
 from src.infrastructure.ml.models.ensemble import EnsembleModel
@@ -31,6 +31,20 @@ logger = get_logger(__name__)
 CACHE_TTL_SECONDS = 6 * 3600  # recompute at most every 6 hours.
 TEST_DAYS = 20
 MIN_TRAIN_ROWS = 30
+
+
+def _regression_metrics(actual: np.ndarray, predicted: np.ndarray) -> Dict[str, float]:
+    """RMSE/MAE/MAPE/R2 for one set of (actual, predicted) pairs - used for
+    both the model's own backtest and the naive baseline it's compared
+    against, so the two numbers are computed exactly the same way."""
+    errors = actual - predicted
+    rmse = float(np.sqrt(np.mean(errors ** 2)))
+    mae = float(np.mean(np.abs(errors)))
+    mape = float(np.mean(np.abs(errors / actual)) * 100)
+    ss_res = float(np.sum(errors ** 2))
+    ss_tot = float(np.sum((actual - actual.mean()) ** 2))
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    return {"rmse": round(rmse, 4), "mae": round(mae, 4), "mape": round(mape, 2), "r2": round(r2, 4)}
 
 
 class ModelEvaluator:
@@ -49,7 +63,7 @@ class ModelEvaluator:
         return metrics
 
     async def _compute_backtest(self, currency: str) -> Dict[str, Any]:
-        df = await self.data_loader.load_data(365)
+        df = await self.data_loader.load_data(DEFAULT_TRAINING_WINDOW_DAYS)
         if df is None or df.empty or currency not in df.columns:
             return {"available": False, "reason": "no historical data"}
 
@@ -72,24 +86,30 @@ class ModelEvaluator:
             return {"available": False, "reason": f"backtest training failed: {exc}"}
 
         actual = test[currency].to_numpy()
-        errors = actual - preds
 
-        rmse = float(np.sqrt(np.mean(errors ** 2)))
-        mae = float(np.mean(np.abs(errors)))
-        mape = float(np.mean(np.abs(errors / actual)) * 100)
-        ss_res = float(np.sum(errors ** 2))
-        ss_tot = float(np.sum((actual - actual.mean()) ** 2))
-        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        # The model's own held-out error.
+        model_metrics = _regression_metrics(actual, preds)
+
+        # Naive persistence baseline: "tomorrow's rate = today's rate".
+        # For a series this close to a random walk, this is a genuinely
+        # hard baseline to beat, and a small MAPE alone doesn't tell you
+        # whether the model beat it - only comparing against it does.
+        # clean[currency] (not just train/test) so the very first held-out
+        # day still has a real previous value to persist from.
+        naive_preds = clean[currency].shift(1).iloc[-TEST_DAYS:].to_numpy()
+        baseline_metrics = _regression_metrics(actual, naive_preds)
 
         return {
             "available": True,
             "method": "walk-forward: trained on all data except the last "
                       f"{TEST_DAYS} days, evaluated only on those held-out days",
             "test_days": TEST_DAYS,
-            "rmse": round(rmse, 4),
-            "mae": round(mae, 4),
-            "mape": round(mape, 2),
-            "r2": round(r2, 4),
+            **model_metrics,
+            "baseline": {
+                "description": "naive persistence (today's rate used as tomorrow's prediction)",
+                **baseline_metrics,
+            },
+            "beats_naive_baseline": model_metrics["rmse"] < baseline_metrics["rmse"],
         }
 
     async def get_current_predictions(self) -> Dict[str, Any]:

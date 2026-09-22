@@ -4,26 +4,18 @@ import sys
 
 from src.application.services.model_evaluation import ModelEvaluator
 from src.common.logger.logger import get_logger
-from src.core.constants import SUPPORTED_CURRENCIES
+from src.core.constants import DEFAULT_TRAINING_WINDOW_DAYS, SUPPORTED_CURRENCIES
 from src.infrastructure.data.loader import DataLoader
 from src.infrastructure.ml.trainers.trainer import ModelTrainer
 
 logger = get_logger("train_models")
 
-# 90 days of CBR data is only ~60 trading days, and the feature engineer's
-# 7-day lag/rolling features eat the first week of that - leaving ~50-55
-# usable rows for four separate tree ensembles. That's not enough history
-# to learn anything beyond noise. Two years of daily rates gives each
-# currency's model several hundred clean rows once the lag warm-up is
-# dropped, which is what these models actually need.
-DEFAULT_DAYS = 730
-
 
 async def main():
     parser = argparse.ArgumentParser(description="Train the currency forecast ensemble models.")
     parser.add_argument(
-        "--days", type=int, default=DEFAULT_DAYS,
-        help=f"How many days of CBR history to fetch and train on (default: {DEFAULT_DAYS}).",
+        "--days", type=int, default=DEFAULT_TRAINING_WINDOW_DAYS,
+        help=f"How many days of CBR history to fetch and train on (default: {DEFAULT_TRAINING_WINDOW_DAYS}, ~3 years).",
     )
     parser.add_argument(
         "--skip-eval", action="store_true",
@@ -42,6 +34,7 @@ async def main():
         sys.exit(1)
 
     print(f"Loaded {len(df)} records ({df['date'].min().date()} .. {df['date'].max().date()}).")
+    print(f"  key_rate (CBR macro feature) present: {'yes' if 'key_rate' in df.columns else 'no - fetch failed or 0 rows returned, see WARNING above'}")
 
     # The loader silently falls back to synthetic demo data if CBR is
     # unreachable (e.g. no internet, or a sandboxed shell with restricted
@@ -58,7 +51,7 @@ async def main():
             "reflect real exchange-rate behavior. ***\n"
         )
 
-    print("Starting model training...")
+    print("Starting model training (includes a small hyperparameter search per model - this takes longer than a plain fit)...")
     trainer = ModelTrainer()
     trained = trainer.train_all(df)
 
@@ -78,9 +71,13 @@ async def main():
             if not metrics.get("available"):
                 print(f"  {currency}: backtest unavailable ({metrics.get('reason')})")
                 continue
+            baseline = metrics["baseline"]
+            verdict = "beats naive baseline" if metrics["beats_naive_baseline"] else "DOES NOT beat naive baseline"
             print(
-                f"  {currency}: RMSE={metrics['rmse']}  MAE={metrics['mae']}  "
-                f"MAPE={metrics['mape']}%  R2={metrics['r2']}"
+                f"  {currency}: model RMSE={metrics['rmse']} MAE={metrics['mae']} "
+                f"MAPE={metrics['mape']}% R2={metrics['r2']}  |  "
+                f"naive (yesterday's rate) RMSE={baseline['rmse']} R2={baseline['r2']}  "
+                f"-> {verdict}"
             )
 
     print("\nModel training completed successfully!")

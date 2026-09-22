@@ -10,6 +10,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.core.constants import CBR_LETTER_CODES, CBR_VALUTE_IDS
 from src.infrastructure.data.cache import CacheManager
+from src.infrastructure.data import external_features
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,24 @@ class DataLoader:
 
                 if valid_data and len(valid_data) > 0:
                     df = pd.DataFrame(valid_data).sort_values("date").reset_index(drop=True)
+
+                    # Best-effort macro feature: CBR's own key interest
+                    # rate (see external_features.py). Never blocks - on
+                    # any failure this is just an empty dict and df is
+                    # returned unchanged.
+                    key_rate_by_date = await external_features.fetch_key_rate(session, start_date, end_date)
+                    if key_rate_by_date:
+                        kr_df = pd.DataFrame(
+                            {
+                                "date": pd.to_datetime(list(key_rate_by_date.keys()), format="%d.%m.%Y"),
+                                "key_rate": list(key_rate_by_date.values()),
+                            }
+                        ).sort_values("date")
+                        # "As of" join: each row gets the key rate that
+                        # was in effect on that date (the most recent
+                        # change at or before it), not just rows where a
+                        # change happened to fall exactly on that date.
+                        df = pd.merge_asof(df, kr_df, on="date", direction="backward")
 
                     self.cache.set(cache_key, df.to_dict("records"), 600)
                     self._last_update = datetime.now()

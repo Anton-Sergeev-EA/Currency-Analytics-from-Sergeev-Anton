@@ -31,5 +31,42 @@ class FeatureEngineer:
                 for window in [3, 7]:
                     df[f"{col}_rolling_mean_{window}"] = df[col].shift(1).rolling(window=window).mean()
                     df[f"{col}_rolling_std_{window}"] = df[col].shift(1).rolling(window=window).std()
+                # Моментум: относительное изменение курса за N дней. Лаги
+                # и скользящие дают модели "уровень", но не "скорость" -
+                # в финансовых рядах эти два сигнала часто ведут себя
+                # по-разному (курс может стоять на месте после резкого
+                # скачка, и наоборот). Сдвинуто на 1 день назад, как и
+                # остальные признаки, чтобы не заглядывать в будущее.
+                for horizon in [3, 7]:
+                    df[f"{col}_pct_change_{horizon}"] = df[col].pct_change(horizon).shift(1)
+
+        # Кросс-курсы: относительная сила доллара против других валют в
+        # том же наборе. Если доллар одновременно дорожает против евро,
+        # юаня и фунта, это сигнал "доллар крепчает глобально" - то, что
+        # ни один из отдельных лагов usd_rate сам по себе не выражает.
+        # Сдвинуто на 1 день назад: использование СЕГОДНЯШНЕГО
+        # eur_rate/usd_rate как признака при предсказании СЕГОДНЯШНЕГО
+        # usd_rate было бы прямой утечкой целевой переменной.
+        cross_pairs = [
+            ("eur_rate", "usd_rate"),
+            ("cny_rate", "usd_rate"),
+            ("gbp_rate", "usd_rate"),
+        ]
+        for numerator, denominator in cross_pairs:
+            if numerator in df.columns and denominator in df.columns:
+                df[f"{numerator}_{denominator}_cross_lag1"] = (
+                    df[numerator] / df[denominator]
+                ).shift(1)
+
+        # Ключевая ставка ЦБ (если loader её подмешал - см.
+        # src/infrastructure/data/loader.py и external_features.py).
+        # Сама по себе публична и известна заранее на весь день вперёд
+        # (ЦБ объявляет решение по ставке, а не публикует его задним
+        # числом), поэтому, в отличие от курсов, сдвиг на 1 день здесь
+        # не нужен - никакой утечки целевой переменной нет. Данные
+        # разреженные (ставка меняется несколько раз в год) - заполняем
+        # пропуски последним известным значением.
+        if "key_rate" in df.columns:
+            df["key_rate"] = df["key_rate"].ffill().bfill()
 
         return df
