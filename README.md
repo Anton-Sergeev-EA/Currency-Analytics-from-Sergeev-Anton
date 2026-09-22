@@ -354,6 +354,20 @@ with a warning, never a failed training run. A short HTTP timeout
 (`MLFLOW_HTTP_REQUEST_TIMEOUT=5`, one retry) keeps a down MLflow server
 from turning into a multi-minute hang.
 
+**One-time setup on a fresh server:** MLflow's own server has DNS
+rebinding protection (`--allowed-hosts` in its systemd unit) that only
+accepts requests with a recognized `Host` header. It won't already
+include the Docker bridge gateway - add it once:
+
+```bash
+sed -i 's/127.0.0.1:5001"/127.0.0.1:5001,172.17.0.1:5000"/' /etc/systemd/system/mlflow.service
+systemctl daemon-reload && systemctl restart mlflow
+```
+
+Without this, every run logs cleanly to the console but every MLflow
+write silently no-ops with a `403 Invalid Host header` warning in the
+app's logs - training still succeeds, the dashboard is just empty.
+
 To browse it, tunnel to the VDS and open the UI locally (it isn't
 exposed on the public domain):
 

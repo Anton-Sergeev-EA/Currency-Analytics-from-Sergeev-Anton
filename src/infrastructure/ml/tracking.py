@@ -44,6 +44,13 @@ logger = get_logger(__name__)
 # fills them in when nothing else already has.
 os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "5")
 os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "1")
+# This container's image deliberately doesn't ship a git binary (it's an
+# inference/training runtime, not a dev environment) - mlflow's autolog
+# tries to capture git SHA/branch/remote for each run regardless, and
+# without git that's four verbose warning blocks per run, not an error.
+# Silencing rather than installing git: cheaper than an extra apt-get
+# layer just to make an optional metadata field available.
+os.environ.setdefault("GIT_PYTHON_REFRESH", "quiet")
 
 
 def _tracking_enabled() -> bool:
