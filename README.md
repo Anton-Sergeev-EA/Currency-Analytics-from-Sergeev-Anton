@@ -347,8 +347,21 @@ abusable by anyone who read this README. They now require a
 app logs a loud warning on startup - that value is public in this repo,
 so the check runs but protects nothing until you set a real one.
 
-Two things found but deliberately **not** silently changed, since fixing
-them wrong could be worse than leaving them documented:
+A second real issue was found and fixed the same way: `pip-audit -r
+requirements.txt` flagged known CVEs in `aiohttp` and, transitively, in
+`starlette` - `fastapi` was pinned to a version whose own dependency
+range capped `starlette` below the fix. Fixed by pinning `fastapi` to
+0.141.1 (which lifts that cap), pinning `starlette` directly to 1.3.1 -
+the earliest release with every flagged CVE resolved - and bumping
+`aiohttp`, `lxml`, `jinja2`, `python-dotenv` and `lightgbm` to their
+current stable releases. The full test suite (33 tests) passes against
+these versions, and `pip-audit -r requirements.txt` currently reports
+zero known vulnerabilities. This will go stale again - re-run
+`pip-audit` occasionally and check its output against the test suite
+before bumping anything further.
+
+One thing found but deliberately **not** silently changed, since fixing
+it wrong could be worse than leaving it documented:
 
 - **The container currently runs as root** (`user: "0:0"` in
   `docker-compose.yml`), even though the `Dockerfile` creates and
@@ -360,10 +373,6 @@ them wrong could be worse than leaving them documented:
   server, not something to flip in one file without checking what
   actually owns those paths first. Until then, a compromise of the app
   process has more privilege inside the container than it needs to.
-- **Dependency versions get stale.** Run `pip-audit -r requirements.txt`
-  occasionally and check `pip-audit`'s output against this project's own
-  test suite before bumping anything - some of these (aiohttp, starlette
-  via fastapi) are not simple patch bumps.
 
 Not found: no raw SQL anywhere in this codebase (the only database
 access, the A/B test log, goes entirely through SQLAlchemy's ORM query
