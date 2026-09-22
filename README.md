@@ -47,6 +47,43 @@ limited disk)** — see [Deploying on a small VDS](#deploying-on-a-small-vds).
 - Structured JSON logging.
 - A pytest smoke-test suite and GitHub Actions CI.
 
+## Model accuracy — read this before trusting a forecast
+
+Day-ahead FX rates are close to a random walk: a huge share of a currency's
+next-day move is, genuinely, not predictable from its own history. Because
+of that, the honest bar for "the model is useful" is not a high R² in
+isolation - it's **beating a naive persistence baseline** ("tomorrow's rate
+= today's rate"), which is already a strong, hard-to-beat benchmark for
+this kind of series. Any dashboard, paper, or product that reports FX
+forecast accuracy without that comparison is not telling you anything
+verifiable.
+
+This project reports that comparison directly, computed the same way in
+three places: `train_models.py`'s console output after every training run,
+`/monitoring/api/model-accuracy`, and `GET /api/health`'s `components`. All
+three use the same walk-forward backtest (`ModelEvaluator`): train on data
+strictly *before* a held-out window, predict that window, never let the
+model see it during training - and average the result over several
+non-overlapping held-out windows rather than just the most recent one, so
+one lucky or unlucky window doesn't flip the headline verdict by chance.
+
+What this currently looks like on real, 3-years-of-history Bank of Russia
+data: it varies by currency and by training run, and **some currencies
+currently do not beat the naive baseline** - that's reported plainly, not
+hidden, in the same backtest output referenced above. This is a realistic
+outcome for a model trained on public data with no proprietary order-flow
+or high-frequency signal, not a bug to be silently patched away with a
+better-looking number. If you retrain this yourself, check your own
+console output rather than trusting a number in this README, since it
+will already be out of date the next time the model is retrained.
+
+Two features were tried and deliberately reverted after a real backtest on
+live data showed they made things worse, not better (a rate-change-recency
+feature and a return-volatility feature both increased error on 3 of 4
+currencies) - kept as a comment and a pinned test in `tests/test_ml.py`
+rather than quietly dropped, since a documented negative result is still
+worth something to whoever reads this next.
+
 ## Tech stack
 
 **Backend:** Python 3.10+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy

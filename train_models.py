@@ -73,8 +73,10 @@ async def main():
                 continue
             baseline = metrics["baseline"]
             verdict = "beats naive baseline" if metrics["beats_naive_baseline"] else "DOES NOT beat naive baseline"
+            windows = metrics.get("windows_evaluated", 1)
             print(
-                f"  {currency}: model RMSE={metrics['rmse']} MAE={metrics['mae']} "
+                f"  {currency} (avg over {windows} held-out window(s)): "
+                f"model RMSE={metrics['rmse']} MAE={metrics['mae']} "
                 f"MAPE={metrics['mape']}% R2={metrics['r2']}  |  "
                 f"naive (yesterday's rate) RMSE={baseline['rmse']} R2={baseline['r2']}  "
                 f"-> {verdict}"

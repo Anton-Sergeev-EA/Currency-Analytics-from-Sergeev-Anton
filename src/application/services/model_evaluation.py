@@ -4,19 +4,33 @@ ModelEvaluator — real, held-out backtest metrics for the monitoring dashboard.
 `/monitoring/api/model-accuracy` and `/monitoring/api/prediction-test` used
 to return `random.random()`-perturbed numbers "to look realistic". This
 replaces that with an actual walk-forward backtest: train a model on all
-data *except* the last `test_days`, predict those held-out days, and
-compare to what actually happened. That is genuinely out-of-sample (the
-production model in data/models/ is trained on the full dataset, so
-evaluating it on its own training data would be in-sample and
-overstate accuracy).
+data *before* a held-out window, predict that window, and compare to what
+actually happened. That is genuinely out-of-sample (the production model
+in data/models/ is trained on the full dataset, so evaluating it on its
+own training data would be in-sample and overstate accuracy).
 
-This is real CPU work (fitting 4 small tree-based regressors on a few
-hundred rows), which is cheap here but not free, so results are cached
-with a TTL - the dashboard doesn't need this recomputed on every poll,
-and a 4GB-RAM VDS shouldn't be asked to.
+The backtest averages over several non-overlapping held-out windows
+(walking backward from the most recent data), not just the last one. A
+single 20-day slice is noisy enough on its own to flip a verdict purely
+by luck: this project's own history has a real example of it (the CNY
+model briefly "beat" the naive baseline, then "lost" to it, between two
+runs on nearly the same real data and only a small code change - the
+kind of instability a single held-out window can't tell apart from a
+genuine regression). Averaging several windows doesn't remove that noise,
+but it does make one unlucky window much less likely to flip the
+headline verdict on its own.
+
+This is real CPU work (fitting 4 small tree-based regressors, with a
+bounded hyperparameter search on the largest window), which is cheap here
+but not free, so results are cached with a TTL - the dashboard doesn't
+need this recomputed on every poll, and a 4GB-RAM VDS shouldn't be asked
+to. To keep the extra windows cheap on modest hardware, only the most
+recent (largest-train-set) window runs the hyperparameter search; earlier
+windows fit each base model with plain defaults, which is enough to
+sanity-check the model's stability without tripling the tuning cost.
 """
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -30,6 +44,7 @@ logger = get_logger(__name__)
 
 CACHE_TTL_SECONDS = 6 * 3600  # recompute at most every 6 hours.
 TEST_DAYS = 20
+N_WINDOWS = 3  # non-overlapping held-out windows, walking backward from the most recent data.
 MIN_TRAIN_ROWS = 30
 
 
@@ -45,6 +60,18 @@ def _regression_metrics(actual: np.ndarray, predicted: np.ndarray) -> Dict[str, 
     ss_tot = float(np.sum((actual - actual.mean()) ** 2))
     r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
     return {"rmse": round(rmse, 4), "mae": round(mae, 4), "mape": round(mape, 2), "r2": round(r2, 4)}
+
+
+def _average_metrics(window_metrics: List[Dict[str, float]]) -> Dict[str, float]:
+    """Mean of each metric across windows - a simple, transparent way to
+    combine them. Not a pooled/weighted average, so each window (even a
+    shorter early one, if any) counts equally."""
+    keys = ("rmse", "mae", "mape", "r2")
+    decimals = {"mape": 2}
+    return {
+        key: round(float(np.mean([m[key] for m in window_metrics])), decimals.get(key, 4))
+        for key in keys
+    }
 
 
 class ModelEvaluator:
@@ -74,36 +101,52 @@ class ModelEvaluator:
         if len(clean) < MIN_TRAIN_ROWS + TEST_DAYS:
             return {"available": False, "reason": "not enough history for a held-out backtest yet"}
 
-        train = clean.iloc[:-TEST_DAYS]
-        test = clean.iloc[-TEST_DAYS:]
+        # How many non-overlapping TEST_DAYS windows fit while still
+        # leaving MIN_TRAIN_ROWS for the earliest (smallest-train-set) one.
+        max_windows = (len(clean) - MIN_TRAIN_ROWS) // TEST_DAYS
+        n_windows = max(1, min(N_WINDOWS, max_windows))
 
+        window_model_metrics: List[Dict[str, float]] = []
+        window_baseline_metrics: List[Dict[str, float]] = []
         try:
-            model = EnsembleModel()
-            model.fit(train[feature_cols], train[currency])
-            preds = model.predict(test[feature_cols])
+            for w in range(n_windows):
+                end = len(clean) - w * TEST_DAYS
+                start = end - TEST_DAYS
+                train = clean.iloc[:start]
+                test = clean.iloc[start:end]
+                if len(train) < MIN_TRAIN_ROWS:
+                    break
+
+                # Only the most recent (largest-train-set) window pays for
+                # the hyperparameter search; earlier windows use plain
+                # defaults so N_WINDOWS backtests don't cost N_WINDOWS times
+                # the tuning budget on a memory-capped VDS.
+                model = EnsembleModel()
+                model.fit(train[feature_cols], train[currency], tune=(w == 0))
+                preds = model.predict(test[feature_cols])
+                actual = test[currency].to_numpy()
+
+                window_model_metrics.append(_regression_metrics(actual, preds))
+
+                naive_preds = clean[currency].shift(1).iloc[start:end].to_numpy()
+                window_baseline_metrics.append(_regression_metrics(actual, naive_preds))
         except Exception as exc:
             logger.error("Backtest training failed for %s: %s", currency, exc, exc_info=True)
             return {"available": False, "reason": f"backtest training failed: {exc}"}
 
-        actual = test[currency].to_numpy()
+        if not window_model_metrics:
+            return {"available": False, "reason": "not enough history for a held-out backtest yet"}
 
-        # The model's own held-out error.
-        model_metrics = _regression_metrics(actual, preds)
-
-        # Naive persistence baseline: "tomorrow's rate = today's rate".
-        # For a series this close to a random walk, this is a genuinely
-        # hard baseline to beat, and a small MAPE alone doesn't tell you
-        # whether the model beat it - only comparing against it does.
-        # clean[currency] (not just train/test) so the very first held-out
-        # day still has a real previous value to persist from.
-        naive_preds = clean[currency].shift(1).iloc[-TEST_DAYS:].to_numpy()
-        baseline_metrics = _regression_metrics(actual, naive_preds)
+        model_metrics = _average_metrics(window_model_metrics)
+        baseline_metrics = _average_metrics(window_baseline_metrics)
+        windows_evaluated = len(window_model_metrics)
 
         return {
             "available": True,
-            "method": "walk-forward: trained on all data except the last "
-                      f"{TEST_DAYS} days, evaluated only on those held-out days",
+            "method": f"walk-forward: averaged over {windows_evaluated} non-overlapping "
+                      f"{TEST_DAYS}-day held-out window(s), each trained only on data before it",
             "test_days": TEST_DAYS,
+            "windows_evaluated": windows_evaluated,
             **model_metrics,
             "baseline": {
                 "description": "naive persistence (today's rate used as tomorrow's prediction)",
