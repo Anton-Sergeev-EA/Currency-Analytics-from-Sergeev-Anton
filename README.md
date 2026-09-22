@@ -368,6 +368,10 @@ Without this, every run logs cleanly to the console but every MLflow
 write silently no-ops with a `403 Invalid Host header` warning in the
 app's logs - training still succeeds, the dashboard is just empty.
 
+Verified end-to-end on the production VDS (2026-09): all 8 runs (4
+currencies x train + backtest) logged successfully after this fix, with
+real run URLs printed by the MLflow client itself.
+
 To browse it, tunnel to the VDS and open the UI locally (it isn't
 exposed on the public domain):
 
