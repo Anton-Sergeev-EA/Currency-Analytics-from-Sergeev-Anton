@@ -2,7 +2,7 @@
 
 Русская версия: [README.ru.md](README.ru.md)
 
-A web application for analyzing and forecasting USD/RUB and EUR/RUB
+A web application for analyzing and forecasting USD/RUB, EUR/RUB, CNY/RUB and GBP/RUB
 exchange rates using official Bank of Russia data. Includes an ensemble
 ML forecasting model (LightGBM, XGBoost, Random Forest, Gradient
 Boosting), a RAG assistant on a local Ollama model, an interactive
@@ -15,7 +15,7 @@ limited disk)** — see [Deploying on a small VDS](#deploying-on-a-small-vds).
 ## Features
 
 - Historical exchange rates from the Bank of Russia API (USD/RUB,
-  EUR/RUB), with a fallback source and a statistical trend if the
+  EUR/RUB, CNY/RUB, GBP/RUB), with a fallback source and a statistical trend if the
   primary source is unavailable.
 - Ensemble ML forecasting with confidence intervals; falls back to a
   robust statistical trend when no trained model exists yet for a
@@ -219,7 +219,7 @@ is what CI runs on every push.
 | GET | `/api/health` | Machine-readable health check (JSON). |
 | GET | `/api/ping` | Liveness check. |
 | GET | `/api/data/data?period_days=N` | Historical exchange rates. |
-| GET | `/api/forecast/forecast?days=N&currency=USD\|EUR\|ALL` | 1-30 day ML forecast. |
+| GET | `/api/forecast/forecast?days=N&currency=USD\|EUR\|CNY\|GBP\|ALL` | 1-30 day ML forecast. |
 | POST | `/api/rag/ask` | Ask the assistant a question (the response includes `sources` — knowledge-base documents actually used). |
 | GET | `/api/stats/stats` | Current rates and day-over-day change. |
 | POST | `/api/refresh` | Background data refresh. |
