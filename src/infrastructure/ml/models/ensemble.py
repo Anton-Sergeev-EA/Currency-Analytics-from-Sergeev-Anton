@@ -1,6 +1,6 @@
 """
 EnsembleModel — combines LightGBM, XGBoost, Random Forest, and Gradient
-Boosting regressors into a single averaged predictor with bootstrap-based
+Boosting regressors into a single weighted predictor with bootstrap-based
 uncertainty estimates.
 
 This class was referenced (imported and called) by `ModelTrainer`,
@@ -17,34 +17,42 @@ exact interface those three call sites already depend on:
 
 ## Design notes
 
-**Point prediction** is the simple mean of the four base regressors'
-predictions — a standard, low-variance ensembling approach that doesn't
-require the base learners to be correlated in any particular way.
+**Point prediction** is a weighted average of the four base regressors'
+predictions, not a plain mean. Each model's weight comes from its own
+cross-validation error during tuning (see below) — a model that reliably
+scored a lower CV MAE for this specific currency gets more say than one
+that didn't, rather than every model always getting an equal 25% vote
+regardless of how well it actually did. Weights are `1 / CV_MAE`,
+normalized to sum to 1, so a model twice as accurate gets roughly twice
+the weight. When tuning didn't run (see below), weights fall back to
+equal (1/4 each) — the old plain-average behavior.
 
 **Uncertainty estimation** uses residual bootstrap rather than refitting
 models at prediction time (refitting 4 models x N iterations on every
 forecast request would be far too slow for an API endpoint). During
-`fit()`, in-sample residuals (true - predicted) are computed once and
-stored. At prediction time, `n_iterations` bootstrap samples are drawn
-from those residuals and added to the point prediction; the 2.5th and
-97.5th percentiles of the resulting distribution form the (lower, upper)
-bound — a widely-used, cheap approximation of a ~95% prediction interval.
-It is a simplification (in-sample residuals tend to slightly
-underestimate true out-of-sample uncertainty), documented here rather
-than hidden, so it can be swapped for out-of-fold residuals later without
-changing any caller.
+`fit()`, in-sample residuals (true - predicted, using the same weighted
+average as `predict()`) are computed once and stored. At prediction time,
+`n_iterations` bootstrap samples are drawn from those residuals and added
+to the point prediction; the 2.5th and 97.5th percentiles of the
+resulting distribution form the (lower, upper) bound — a widely-used,
+cheap approximation of a ~95% prediction interval. It is a simplification
+(in-sample residuals tend to slightly underestimate true out-of-sample
+uncertainty), documented here rather than hidden, so it can be swapped
+for out-of-fold residuals later without changing any caller.
 
 **Hyperparameter tuning**: each base model used to fit with plain library
-defaults, which for ~500 rows and 30+ correlated lag/rolling features is
-a recipe for overfitting the training set and doing no better than noise
-out of sample (the walk-forward backtest in model_evaluation.py first
-surfaced this as a negative R2). `fit()` now runs a small, bounded
-`RandomizedSearchCV` per base model with `TimeSeriesSplit` folds instead
-of a random/shuffled split — shuffling would let a fold "predict the
-past from the future", which is not a real forecasting scenario. The
-search space and iteration count are kept deliberately small (a handful
-of candidates x a few folds) so this stays fast and memory-light enough
-for a small VDS; it is not an exhaustive grid search.
+defaults, which for a few hundred rows and 30+ correlated lag/rolling
+features is a recipe for overfitting the training set and doing no
+better than noise out of sample (the walk-forward backtest in
+model_evaluation.py first surfaced this as a negative R2). `fit()` runs a
+small, bounded `RandomizedSearchCV` per base model with `TimeSeriesSplit`
+folds instead of a random/shuffled split — shuffling would let a fold
+"predict the past from the future", which is not a real forecasting
+scenario. The search space and iteration count are kept deliberately
+small (a handful of candidates x a few folds) so this stays fast and
+memory-light enough for a small VDS; it is not an exhaustive grid search.
+Each search's own held-out CV score is then reused as this model's
+ensemble weight, so the tuning step pays for itself twice over.
 """
 from __future__ import annotations
 
@@ -113,6 +121,8 @@ class EnsembleModel:
         self._residuals: Optional[np.ndarray] = None
         self._fitted = False
         self.tuned_params_: dict[str, dict] = {}
+        # Equal weights until fit() (re)computes them from CV performance.
+        self._weights: dict[str, float] = {name: 1.0 / len(self._models) for name in self._models}
 
     def fit(self, X: pd.DataFrame, y: pd.Series, tune: bool = True) -> "EnsembleModel":
         logger.info("Fitting ensemble (%d base models) on %d rows", len(self._models), len(X))
@@ -121,6 +131,7 @@ class EnsembleModel:
         can_tune = tune and len(X) >= _MIN_ROWS_TO_TUNE
         n_splits = min(_TUNE_CV_SPLITS, max(2, len(X) // 30)) if can_tune else 0
 
+        cv_mae_by_model: dict[str, float] = {}
         for name, model in self._models.items():
             if can_tune:
                 search = RandomizedSearchCV(
@@ -135,11 +146,27 @@ class EnsembleModel:
                 search.fit(X, y)
                 self._models[name] = search.best_estimator_
                 self.tuned_params_[name] = search.best_params_
-                logger.info(
-                    "Tuned %s: %s (CV MAE=%.4f)", name, search.best_params_, -search.best_score_
-                )
+                cv_mae = -search.best_score_
+                cv_mae_by_model[name] = cv_mae
+                logger.info("Tuned %s: %s (CV MAE=%.4f)", name, search.best_params_, cv_mae)
             else:
                 model.fit(X, y)
+
+        if cv_mae_by_model:
+            # Inverse-error weighting: 1/MAE so a lower (better) error
+            # yields a higher weight, then normalized to sum to 1. A tiny
+            # epsilon guards against a division by an implausible exact-0
+            # MAE (perfect in-sample fit on a fold - not expected here,
+            # but would otherwise blow up the weight to infinity).
+            inv_errors = {name: 1.0 / max(mae, 1e-6) for name, mae in cv_mae_by_model.items()}
+            total = sum(inv_errors.values())
+            self._weights = {name: w / total for name, w in inv_errors.items()}
+            logger.info(
+                "Ensemble weights (by CV performance): %s",
+                {k: round(v, 3) for k, v in self._weights.items()},
+            )
+        else:
+            self._weights = {name: 1.0 / len(self._models) for name in self._models}
 
         in_sample_pred = self._average_predict(X)
         self._residuals = np.asarray(y) - in_sample_pred
@@ -179,6 +206,7 @@ class EnsembleModel:
                 "residuals": self._residuals,
                 "random_state": self.random_state,
                 "tuned_params": self.tuned_params_,
+                "weights": self._weights,
             },
             path,
         )
@@ -191,6 +219,9 @@ class EnsembleModel:
         self._residuals = bundle["residuals"]
         self.random_state = bundle.get("random_state", self.random_state)
         self.tuned_params_ = bundle.get("tuned_params", {})
+        self._weights = bundle.get(
+            "weights", {name: 1.0 / len(self._models) for name in self._models}
+        )
         self._fitted = True
         logger.info("EnsembleModel loaded from %s", path)
         return self
@@ -198,8 +229,10 @@ class EnsembleModel:
     def _average_predict(self, X: pd.DataFrame) -> np.ndarray:
         if self._feature_columns is not None:
             X = X[self._feature_columns]
-        predictions = np.column_stack([model.predict(X) for model in self._models.values()])
-        return predictions.mean(axis=1)
+        preds = np.zeros(len(X))
+        for name, model in self._models.items():
+            preds += self._weights.get(name, 1.0 / len(self._models)) * model.predict(X)
+        return preds
 
     def _check_fitted(self) -> None:
         if not self._fitted:

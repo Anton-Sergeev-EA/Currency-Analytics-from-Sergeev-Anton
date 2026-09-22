@@ -39,6 +39,15 @@ class FeatureEngineer:
                 # остальные признаки, чтобы не заглядывать в будущее.
                 for horizon in [3, 7]:
                     df[f"{col}_pct_change_{horizon}"] = df[col].pct_change(horizon).shift(1)
+                # Волатильность доходности (не уровня курса, а его
+                # ОТНОСИТЕЛЬНОГО изменения день к дню) за 7/14 дней -
+                # "спокойный" рынок и "трясущийся" рынок часто ведут себя
+                # по-разному даже при одинаковом текущем уровне курса, а
+                # rolling_std_* выше считает std самого уровня, что
+                # смешивает тренд и волатильность. Это отдельный сигнал.
+                daily_returns = df[col].pct_change().shift(1)
+                for window in [7, 14]:
+                    df[f"{col}_volatility_{window}"] = daily_returns.rolling(window=window).std()
 
         # Кросс-курсы: относительная сила доллара против других валют в
         # том же наборе. Если доллар одновременно дорожает против евро,
@@ -68,5 +77,13 @@ class FeatureEngineer:
         # пропуски последним известным значением.
         if "key_rate" in df.columns:
             df["key_rate"] = df["key_rate"].ffill().bfill()
+            # Дней с последнего изменения ставки: сам факт "ставка только
+            # что поменялась" против "ставка стоит на месте уже полгода"
+            # несёт больше информации, чем просто её текущий уровень -
+            # рынок обычно активнее переоценивает курс сразу после
+            # решения ЦБ, а не постфактум спустя месяцы затишья.
+            rate_changed = df["key_rate"].diff().fillna(0) != 0
+            change_group = rate_changed.cumsum()
+            df["days_since_key_rate_change"] = df.groupby(change_group).cumcount()
 
         return df
