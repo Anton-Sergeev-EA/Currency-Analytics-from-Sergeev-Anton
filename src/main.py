@@ -46,6 +46,20 @@ async def _warm_model_accuracy_cache() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Currency Analytics System...")
+    if settings.SECRET_KEY == "change_this_in_production":
+        # Admin routes (src/presentation/api/routes/admin.py) now require
+        # an X-Admin-Key header matching SECRET_KEY - but the default
+        # value is printed in plain text in this public repo's
+        # .env.example, so leaving it unchanged means the check runs but
+        # protects nothing against anyone who has read the source. Not a
+        # reason to block startup - a fresh, not-yet-configured
+        # deployment should still come up - but worth shouting about.
+        logger.warning(
+            "SECRET_KEY is still the default placeholder from .env.example - "
+            "admin endpoints (/api/refresh, /api/force-refresh, /api/cache/status) "
+            "are technically gated behind it, but that value is public. "
+            "Set a real SECRET_KEY in .env before relying on this for anything."
+        )
     warmup_task = asyncio.create_task(_warm_model_accuracy_cache())
     yield
     warmup_task.cancel()

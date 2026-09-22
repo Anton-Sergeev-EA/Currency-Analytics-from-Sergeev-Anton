@@ -280,9 +280,9 @@ is what CI runs on every push.
 | GET | `/api/forecast/forecast?days=N&currency=USD\|EUR\|CNY\|GBP\|ALL` | 1-30 day ML forecast. |
 | POST | `/api/rag/ask` | Ask the assistant a question (the response includes `sources` — knowledge-base documents actually used). |
 | GET | `/api/stats/stats` | Current rates and day-over-day change. |
-| POST | `/api/refresh` | Background data refresh. |
-| POST | `/api/force-refresh` | Synchronous forced data refresh, bypassing the cache. |
-| GET | `/api/cache/status` | Cache status. |
+| POST | `/api/refresh` | Background data refresh. **Requires header** `X-Admin-Key: <SECRET_KEY>`. |
+| POST | `/api/force-refresh` | Synchronous forced data refresh, bypassing the cache. **Requires header** `X-Admin-Key: <SECRET_KEY>`. |
+| GET | `/api/cache/status` | Cache status. **Requires header** `X-Admin-Key: <SECRET_KEY>`. |
 | GET | `/api/ab-test/status` | A/B test status and current traffic split. |
 | POST | `/api/ab-test/predict?currency=usd_rate&days=1` | Real forecast through the assigned variant (A/B), logged to the DB. |
 | GET | `/api/ab-test/stats?days=30` | Real per-variant MAE/MAPE + significance t-test. |
@@ -332,6 +332,42 @@ python scripts/update_ab_actual_rates.py
 `docker-compose.prod.yml` adds nginx in front of the app;
 `prometheus`/`grafana` are an optional Compose profile (`monitoring`),
 not required for the app to work.
+
+## Security notes
+
+A real security review of this codebase found and fixed one concrete
+issue: `/api/refresh`, `/api/force-refresh` and `/api/cache/status` used
+to be reachable by anyone on the public internet with no credential at
+all, and `/api/force-refresh` triggers genuine work (a live Bank of
+Russia fetch plus a full data reload) with no rate limiting - trivially
+abusable by anyone who read this README. They now require a
+`X-Admin-Key` header matching `SECRET_KEY` from `.env` (see
+`require_admin_key` in `src/presentation/api/routes/admin.py`). If
+`SECRET_KEY` is still the default placeholder from `.env.example`, the
+app logs a loud warning on startup - that value is public in this repo,
+so the check runs but protects nothing until you set a real one.
+
+Two things found but deliberately **not** silently changed, since fixing
+them wrong could be worse than leaving them documented:
+
+- **The container currently runs as root** (`user: "0:0"` in
+  `docker-compose.yml`), even though the `Dockerfile` creates and
+  switches to an unprivileged `analytics` user - the compose override
+  is almost certainly there because the bind-mounted `./data` and
+  `./logs` are owned by root on the host. Fixing this properly means
+  changing ownership of those host directories (or matching the
+  container user's UID/GID to them) - a coordinated change on the real
+  server, not something to flip in one file without checking what
+  actually owns those paths first. Until then, a compromise of the app
+  process has more privilege inside the container than it needs to.
+- **Dependency versions get stale.** Run `pip-audit -r requirements.txt`
+  occasionally and check `pip-audit`'s output against this project's own
+  test suite before bumping anything - some of these (aiohttp, starlette
+  via fastapi) are not simple patch bumps.
+
+Not found: no raw SQL anywhere in this codebase (the only database
+access, the A/B test log, goes entirely through SQLAlchemy's ORM query
+builder), and no `eval`/`exec`/`pickle.loads`/`os.system` calls.
 
 ## License
 

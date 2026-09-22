@@ -24,10 +24,17 @@ hypothetical one; each test below is a regression test pinned to that bug:
   an unexpected keyword argument 'refresh'` from inside its background
   task, because DataService.get_historical_data() had no `refresh`
   parameter at all.
+- POST /api/refresh, POST /api/force-refresh and GET /api/cache/status
+  used to have no authentication at all - reachable by anyone on the
+  public internet, and /api/force-refresh triggers real work (a live CBR
+  fetch plus a full data reload). They now require an X-Admin-Key header
+  matching SECRET_KEY (src/presentation/api/routes/admin.py).
 - POST /api/rag/ask used to be reachable only at the accidental
   double-prefixed /api/rag/api/ask.
 """
 from fastapi.testclient import TestClient
+
+from src.core.config import settings
 
 from src.main import app
 
@@ -66,15 +73,34 @@ def test_ab_testing_router_is_mounted():
 
 
 def test_admin_refresh_endpoint():
-    resp = client.post("/api/refresh")
+    resp = client.post("/api/refresh", headers={"X-Admin-Key": settings.SECRET_KEY})
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
 
 
 def test_admin_cache_status_endpoint():
-    resp = client.get("/api/cache/status")
+    resp = client.get("/api/cache/status", headers={"X-Admin-Key": settings.SECRET_KEY})
     assert resp.status_code == 200
     assert "local_cache_size" in resp.json()
+
+
+def test_admin_endpoints_reject_missing_or_wrong_admin_key():
+    """The actual security-relevant behavior: an admin endpoint used to
+    be reachable by anyone with no credential at all - pin that it now
+    isn't, for all three admin routes, both with no header at all and
+    with a wrong one."""
+    for method, path in (
+        ("post", "/api/refresh"),
+        ("post", "/api/force-refresh"),
+        ("get", "/api/cache/status"),
+    ):
+        call = getattr(client, method)
+
+        resp_no_header = call(path)
+        assert resp_no_header.status_code == 401, f"{path} should reject a request with no X-Admin-Key"
+
+        resp_wrong_key = call(path, headers={"X-Admin-Key": "definitely-not-the-real-key"})
+        assert resp_wrong_key.status_code == 401, f"{path} should reject a wrong X-Admin-Key"
 
 
 def test_monitoring_dashboard_renders():
