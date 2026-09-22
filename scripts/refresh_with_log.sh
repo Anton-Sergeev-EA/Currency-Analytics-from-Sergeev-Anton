@@ -16,7 +16,7 @@ ENV_FILE="/root/Currency-Analytics-from-Sergeev-Anton/.env"
 ADMIN_KEY=$(grep -m1 '^SECRET_KEY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
 
 # Выполняем запрос
-RESPONSE=$(curl -s -X POST -H "X-Admin-Key: $ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh)
+RESPONSE=$(curl -s -X POST -H "X-Admin-Key: $ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh)
 
 # Проверяем результат
 if echo "$RESPONSE" | grep -q '"status":"success"'; then

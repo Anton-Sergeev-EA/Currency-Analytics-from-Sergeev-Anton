@@ -15,22 +15,28 @@ CURRENCY_ANALYTICS_ADMIN_KEY=paste_your_real_SECRET_KEY_from_.env_here
 # (Currency-Analytics-from-Sergeev-Anton) - это уже было так до этого
 # аудита; не трогала, чтобы не сломать то, что у тебя реально настроено.
 # Если у тебя каталог называется иначе - поправь пути ниже под себя.
+#
+# ПОРТ 8002, а не 8000: docker-compose.yml публикует контейнер на хосте
+# как "8002:8000" (см. секцию ports), и системный nginx на сервере тоже
+# смотрит на 127.0.0.1:8002 - именно так снаружи работает сайт. Порт
+# 8000 нигде на хосте не слушается. Если когда-нибудь поменяешь
+# port-mapping в docker-compose.yml - поправь и здесь, и в nginx.
 
 # Currency Analytics - обновление курсов валют
 # 00:00, 03:00, 06:00, 08:00, 10:30, 13:30, 16:30, 19:00, 21:00 MSK
 
-0 0 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-0 3 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-0 6 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-0 8 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-30 10 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-30 13 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-30 16 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-00 19 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
-0 21 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 0 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 3 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 6 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 8 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 10 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 13 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+30 16 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+00 19 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 21 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
 
 # Резервное обновление каждые 2 часа
-0 */2 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8000/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
+0 */2 * * * curl -s -X POST -H "X-Admin-Key: $CURRENCY_ANALYTICS_ADMIN_KEY" http://127.0.0.1:8002/api/force-refresh >> /root/currency-analyzer/logs/cron_refresh.log 2>&1
 
 # Очистка логов раз в неделю (воскресенье в 00:00)
 0 0 * * 0 find /root/currency-analyzer/logs -name "*.log" -mtime +30 -delete 2>/dev/null
