@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +15,40 @@ from src.presentation.monitoring.routes import router as monitoring_router
 
 logger = get_logger("main")
 
+
+async def _warm_model_accuracy_cache() -> None:
+    """Pre-computes the monitoring dashboard's walk-forward backtest for
+    every currency in the background, right after boot.
+
+    `/monitoring/api/model-accuracy` is real CPU work - a bounded
+    hyperparameter search per currency, easily minutes total on a cold
+    cache (see ModelEvaluator's docstring) - and it used to run inline on
+    whichever visitor's request happened to hit it first after a deploy,
+    which is exactly what made the monitoring dashboard itself appear to
+    hang after a fresh deploy. Firing it here instead means a real visitor
+    almost always lands on an already-warm cache (6-hour TTL) rather than
+    paying that cost themselves. This task runs concurrently with normal
+    request handling, not before it - ModelEvaluator's own CPU-bound work
+    is offloaded to a worker thread, so this doesn't delay startup or
+    block any other endpoint while it runs.
+    """
+    from src.core.constants import SUPPORTED_CURRENCIES
+    from src.presentation.monitoring.routes import evaluator
+
+    for ccy in SUPPORTED_CURRENCIES:
+        try:
+            await evaluator.get_accuracy(ccy)
+        except Exception as exc:
+            logger.warning("Startup accuracy cache warm-up failed for %s: %s", ccy, exc)
+    logger.info("Startup accuracy cache warm-up complete.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Currency Analytics System...")
+    warmup_task = asyncio.create_task(_warm_model_accuracy_cache())
     yield
+    warmup_task.cancel()
     logger.info("Shutting down Currency Analytics System...")
 
 app = FastAPI(
