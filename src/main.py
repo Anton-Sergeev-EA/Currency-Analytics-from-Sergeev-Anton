@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from src.core.config import settings
 from src.common.logger.logger import get_logger
 from src.common.prometheus_metrics import instrument as instrument_prometheus
@@ -104,6 +105,16 @@ app.include_router(health_router, prefix="/api")
 app.include_router(ab_testing_router, prefix="/api")
 app.include_router(web_router)
 app.include_router(monitoring_router)
+# Vendored third-party JS (currently just Chart.js) instead of pulling it
+# from a CDN on every page load: cdn.jsdelivr.net is slow or blocked from
+# some networks, and since the script tag wasn't async/defer, a slow or
+# failed CDN request stalled the whole page and left every chart
+# (homepage forecast, monitoring dashboard) simply never drawn.
+app.mount(
+    "/static",
+    StaticFiles(directory="src/presentation/static"),
+    name="static",
+)
 
 @app.get("/favicon.ico")
 async def favicon():

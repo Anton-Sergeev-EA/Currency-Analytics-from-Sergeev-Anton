@@ -112,7 +112,12 @@ instead of covering it up:
 **ML:** LightGBM, XGBoost, scikit-learn, pandas, NumPy.
 **AI/RAG:** Ollama (local LLM), a scikit-learn TF-IDF retriever
 (deliberately not torch/sentence-transformers/chromadb — see below).
-**Frontend:** plain HTML/CSS/JS + Chart.js, no framework.
+**Frontend:** plain HTML/CSS/JS + Chart.js, no framework. Chart.js is
+vendored at `src/presentation/static/vendor/` and served by the app itself
+(`/static/...`) instead of pulled from a CDN on every page load — a slow or
+blocked CDN used to leave every chart (homepage forecast, monitoring
+dashboard) stuck on "loading" with no error, since the `<script>` tag
+wasn't async and just stalled the rest of the page.
 **Infra:** Docker (multi-stage build), Docker Compose, Prometheus,
 Grafana (optional), nginx (prod).
 

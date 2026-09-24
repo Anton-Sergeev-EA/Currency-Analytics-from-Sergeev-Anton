@@ -112,7 +112,13 @@ VDS»](#деплой-на-слабый-vds).
 **ML:** LightGBM, XGBoost, scikit-learn, pandas, NumPy.
 **AI/RAG:** Ollama (локальная LLM), TF-IDF-ретривер на scikit-learn
 (намеренно без torch/sentence-transformers/chromadb — см. ниже).
-**Frontend:** обычные HTML/CSS/JS + Chart.js, без фреймворка.
+**Frontend:** обычные HTML/CSS/JS + Chart.js, без фреймворка. Chart.js
+лежит прямо в репозитории (`src/presentation/static/vendor/`) и отдаётся
+самим приложением (`/static/...`), а не подтягивается с CDN при каждой
+загрузке страницы — раньше медленный или заблокированный CDN оставлял
+все графики (прогноз на главной, дашборд мониторинга) висеть на
+"Загрузка..." без единой ошибки, потому что тег `<script>` был
+блокирующим и просто стопорил всю остальную страницу.
 **Инфраструктура:** Docker (multi-stage сборка), Docker Compose,
 Prometheus, Grafana (опционально), nginx (прод).
 
