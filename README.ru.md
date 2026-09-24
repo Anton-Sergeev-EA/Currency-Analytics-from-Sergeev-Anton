@@ -353,6 +353,17 @@ python scripts/update_ab_actual_rates.py
 `prometheus`/`grafana` — опциональный профиль Compose `monitoring`
 (`docker-compose --profile monitoring up -d`), не обязателен для работы.
 
+**Исправлено (сентябрь 2026):** `/api/data/data` падал с 500-й ошибкой
+для любого периода, достаточно длинного, чтобы захватить даты раньше
+начала истории признака ключевой ставки (это как раз период по
+умолчанию для графика на главной странице — 180 дней). Один-единственный
+`NaN` где-то в ответе ломал сериализацию ВСЕГО JSON-ответа
+(`ValueError: Out of range float values are not JSON compliant` —
+Starlette по умолчанию запрещает `NaN`/`Infinity` в JSON), а не только
+одного поля. Теперь `DataService.get_historical_data()` заменяет любое
+нечисловое значение (`NaN`/`Infinity`) на `null` перед тем, как данные
+уходят из сервиса — см. `tests/test_data_service.py`.
+
 ## Трекинг экспериментов (MLflow)
 
 Каждый запуск `train_models.py` логирует по два MLflow-рана на каждую

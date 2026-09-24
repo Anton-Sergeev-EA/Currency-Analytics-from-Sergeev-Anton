@@ -1,3 +1,4 @@
+import math
 from typing import Dict, Any
 import pandas as pd
 from src.core.constants import SUPPORTED_CURRENCIES, short_code
@@ -46,13 +47,37 @@ class DataService:
 
         for col in SUPPORTED_CURRENCIES:
             if col in df_copy.columns:
-                values = [round(float(x), 4) if pd.notna(x) else None for x in df_copy[col]]
+                # pd.notna() alone lets a raw Infinity through (it isn't
+                # NaN) straight into a JSON response that can't serialize
+                # it - use the same isfinite check as `records` below.
+                values = [
+                    round(float(x), 4) if pd.notna(x) and math.isfinite(x) else None
+                    for x in df_copy[col]
+                ]
             else:
                 values = []
             result[short_code(col)] = values
             result[col] = values
 
-        records = df_copy.to_dict(orient="records")
+        # merge_asof's backward join in the loader (key_rate, so far the
+        # only external feature merged onto the rate history) leaves NaN
+        # for any row older than that feature's own coverage - which
+        # to_dict() below passes straight through as a bare float NaN.
+        # Starlette's default JSONResponse serializes with allow_nan=False
+        # (the JSON spec doesn't allow NaN/Infinity), so a single NaN deep
+        # in a long-period window 500'd the *entire* response - not just
+        # that one field - which is exactly why the 30-day chart worked
+        # while the page's own default 180-day load silently never
+        # rendered a chart at all. The per-currency `values` lists above
+        # were already doing this pd.notna() swap; `records`/`data` just
+        # hadn't been getting the same treatment.
+        records = [
+            {
+                key: (None if isinstance(value, float) and not math.isfinite(value) else value)
+                for key, value in record.items()
+            }
+            for record in df_copy.to_dict(orient="records")
+        ]
         result["records"] = records
         result["data"] = records
         return result

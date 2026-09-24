@@ -338,6 +338,16 @@ python scripts/update_ab_actual_rates.py
 `prometheus`/`grafana` are an optional Compose profile (`monitoring`),
 not required for the app to work.
 
+**Fixed (2026-09):** `/api/data/data` 500'd for any period long enough to
+reach back before the key-rate feature's own history (the homepage's
+own default 180-day chart load included) - a single `NaN` anywhere in
+the response made the whole JSON response fail to serialize
+(`ValueError: Out of range float values are not JSON compliant`,
+Starlette's `JSONResponse` refuses `NaN`/`Infinity` by default), not
+just that one field. `DataService.get_historical_data()` now replaces
+any non-finite float with `null` before the data leaves the service -
+see `tests/test_data_service.py`.
+
 ## Experiment tracking (MLflow)
 
 Every `train_models.py` run logs two MLflow runs per currency:
