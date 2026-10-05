@@ -32,11 +32,14 @@ hypothetical one; each test below is a regression test pinned to that bug:
 - POST /api/rag/ask used to be reachable only at the accidental
   double-prefixed /api/rag/api/ask.
 """
+
+import pandas as pd
+import pytest
 from fastapi.testclient import TestClient
 
 from src.core.config import settings
-
 from src.main import app
+from src.presentation.monitoring import routes as monitoring_routes
 
 client = TestClient(app)
 
@@ -97,10 +100,16 @@ def test_admin_endpoints_reject_missing_or_wrong_admin_key():
         call = getattr(client, method)
 
         resp_no_header = call(path)
-        assert resp_no_header.status_code == 401, f"{path} should reject a request with no X-Admin-Key"
+        assert resp_no_header.status_code == 401, (
+            f"{path} should reject a request with no X-Admin-Key"
+        )
 
-        resp_wrong_key = call(path, headers={"X-Admin-Key": "definitely-not-the-real-key"})
-        assert resp_wrong_key.status_code == 401, f"{path} should reject a wrong X-Admin-Key"
+        resp_wrong_key = call(
+            path, headers={"X-Admin-Key": "definitely-not-the-real-key"}
+        )
+        assert resp_wrong_key.status_code == 401, (
+            f"{path} should reject a wrong X-Admin-Key"
+        )
 
 
 def test_monitoring_dashboard_renders():
@@ -144,7 +153,10 @@ def test_ab_test_predict_is_not_the_old_hardcoded_mock():
     computes an actual forecast (ML ensemble or persistence baseline)
     from whatever demo/historical data is loaded.
     """
-    resp = client.post("/api/ab-test/predict", params={"user_id": "test-user-1", "currency": "usd_rate", "days": 1})
+    resp = client.post(
+        "/api/ab-test/predict",
+        params={"user_id": "test-user-1", "currency": "usd_rate", "days": 1},
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert body["variant"] in ("A", "B")
@@ -163,32 +175,49 @@ def test_ab_test_stats_endpoint_reflects_real_service():
     assert "total_requests" in body
 
 
-def test_monitoring_model_accuracy_reports_availability_not_random_numbers():
+def test_monitoring_model_accuracy_reports_availability_not_random_numbers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_history(window: int) -> pd.DataFrame:
+        return pd.DataFrame()
+
+    # Exercise the real no-history contract without launching a tuned backtest.
+    # Backtest windowing and actual model fitting have their own focused tests.
+    monkeypatch.setattr(
+        monitoring_routes.evaluator.data_loader, "load_data", no_history
+    )
+    monkeypatch.setattr(monitoring_routes.evaluator, "_cache", {})
     resp = client.get("/monitoring/api/model-accuracy")
     assert resp.status_code == 200
     data = resp.json()["data"]
     for currency in ("usd", "eur"):
         assert currency in data
-        # Either a real walk-forward backtest ran ("available": True with
-        # rmse/mae/mape/r2 from an actual held-out evaluation), or it
-        # honestly reports why not - never a `random.random()` filler.
-        assert "available" in data[currency]
+        # With no historical rows, the API must report unavailability
+        # rather than synthesize apparently measured accuracy values.
+        assert data[currency] == {"available": False, "reason": "no historical data"}
 
 
 def test_rag_investment_question_is_a_real_calculation():
     resp = client.post(
         "/api/rag/ask",
-        json={"question": "Сколько я заработаю, если вложу 100000 рублей в доллары на неделю?"},
+        json={
+            "question": "Сколько я заработаю, если вложу 100000 рублей в доллары на неделю?"
+        },
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["type"] in ("investment", "error")  # "error" only if demo data is somehow empty
+    assert body["type"] in (
+        "investment",
+        "error",
+    )  # "error" only if demo data is somehow empty
     if body["type"] == "investment":
         assert "sources" in body and body["sources"]
 
 
 def test_rag_conversion_question_is_deterministic():
-    resp = client.post("/api/rag/ask", json={"question": "Переведи 100 долларов в рубли"})
+    resp = client.post(
+        "/api/rag/ask", json={"question": "Переведи 100 долларов в рубли"}
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert body["type"] in ("conversion", "error")
