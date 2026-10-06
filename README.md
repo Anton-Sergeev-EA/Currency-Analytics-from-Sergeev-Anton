@@ -1,12 +1,16 @@
 # Currency Analytics
 
+> **Supporting research/backend project; no feature expansion is planned.**
+> Forecast advantage, trading returns and production deployment are not established
+> by the unit/smoke tests. Deployment instructions are examples, not deployment evidence.
+
 Русская версия: [README.ru.md](README.ru.md)
 
 A web application for analyzing and forecasting USD/RUB, EUR/RUB, CNY/RUB and GBP/RUB
 exchange rates using official Bank of Russia data. Includes an ensemble
 ML forecasting model (LightGBM, XGBoost, Random Forest, Gradient
 Boosting), a RAG assistant on a local Ollama model, an interactive
-dashboard, and a real A/B test of the model against a statistical
+dashboard, and a mechanism for logging forecast comparisons against a statistical
 baseline.
 
 The project is deliberately sized to run on a **small VDS (4GB RAM,
@@ -33,10 +37,10 @@ limited disk)** — see [Deploying on a small VDS](#deploying-on-a-small-vds).
   dark theme.
 - Redis-backed caching with automatic fallback to an in-memory cache if
   Redis is unavailable.
-- **Real A/B testing** (`/api/ab-test/*`): variant A is the real ML
+- **A/B assignment and forecast-comparison logging** (`/api/ab-test/*`): variant A is the real ML
   ensemble, variant B is a persistence/random-walk forecast (the
   standard benchmark in FX forecasting). Deterministic user-to-variant
-  assignment, a SQLite log, real MAE/MAPE and a significance t-test once
+  assignment, a SQLite log, computed MAE/MAPE and a t-test statistic once
   the actual rate becomes known (`POST /api/ab-test/refresh-actuals`).
 - **Real monitoring dashboard metrics**: model accuracy is a genuine
   walk-forward backtest (train excluding the last N days, evaluate only
@@ -67,43 +71,17 @@ model see it during training - and average the result over several
 non-overlapping held-out windows rather than just the most recent one, so
 one lucky or unlucky window doesn't flip the headline verdict by chance.
 
-**Current honest state, on real 3-years-of-history Bank of Russia data:
-none of the four currencies beat the naive baseline outright.** As of the
-last real training run, GBP comes closest (backtest RMSE 0.865 vs. the
-naive baseline's 0.855 - within a hair of it); USD, EUR and CNY trail by a
-larger margin. This is reported plainly by the same backtest referenced
-above, not hidden or rounded away - and it is a realistic outcome for a
-model trained on public data with no proprietary order-flow or
-high-frequency signal, not a bug to be silently patched away with a
-better-looking number. If you retrain this yourself, check your own
-console output rather than trusting the numbers above - they will already
-be out of date the moment the model is retrained on a different window of
-history.
+**Evaluation boundary:** this documentation does not establish that the ensemble
+beats persistence. Earlier README figures (including per-currency RMSE and weight
+ranges) are removed because they are not accompanied here by an independently
+reproduced run tied to a data snapshot, configuration and model revision.
 
-Two engineering decisions came directly out of chasing this gap honestly,
-instead of covering it up:
-
-- **Two candidate features were tried and reverted.** A rate-change-recency
-  feature and a return-volatility feature both looked reasonable, but a
-  real backtest on live data showed they increased error on 3 of 4
-  currencies - reverted, with the reasoning and the before/after numbers
-  kept as a comment in `engineer.py` and pinned by a test in
-  `tests/test_ml.py`, instead of quietly dropped.
-- **The ensemble now includes the naive persistence forecast itself** as a
-  fifth, zero-parameter candidate, weighted by the same held-out
-  cross-validation rule as the four tree-based models (see
-  `EnsembleModel`'s docstring) - a standard technique in forecasting
-  (blending a naive/statistical baseline with ML, the way winning entries
-  in competitions like the M4 do, rather than treating them as rivals).
-  This measurably narrowed the gap to the naive baseline on all four
-  currencies compared to ML-only, without fully closing it: the naive
-  candidate typically earns 35-60% of the ensemble's weight, but the rest
-  still goes to the four ML models, which are individually behind the
-  baseline on this data - so the blend improves on ML-only without being
-  mathematically guaranteed to beat pure persistence outright. Not a trick
-  to disguise a weak model as a strong one: the weight is earned purely by
-  measured performance, applied identically in training, in the saved
-  production model, and in this backtest.
+The code includes a persistence candidate and records evaluation statistics.
+Claims about improved forecasts require a chronological held-out comparison,
+data hashes, training configuration and raw results. An A/B assignment/logging
+mechanism and a t-test endpoint alone do not establish a statistically valid
+experiment, forecast advantage or trading profitability. Repeated observations
+and time dependence must be accounted for in an evaluation design.
 
 ## Tech stack
 
@@ -290,7 +268,7 @@ is what CI runs on every push.
 | GET | `/api/cache/status` | Cache status. **Requires header** `X-Admin-Key: <SECRET_KEY>`. |
 | GET | `/api/ab-test/status` | A/B test status and current traffic split. |
 | POST | `/api/ab-test/predict?currency=usd_rate&days=1` | Real forecast through the assigned variant (A/B), logged to the DB. |
-| GET | `/api/ab-test/stats?days=30` | Real per-variant MAE/MAPE + significance t-test. |
+| GET | `/api/ab-test/stats?days=30` | Computed per-variant MAE/MAPE and t-test statistic; see evaluation limits. |
 | POST | `/api/ab-test/update-ratios?split_a=0.5` | Change variant A's traffic share. |
 | POST | `/api/ab-test/refresh-actuals` | Fetch actual rates for forecasts whose date has passed (needed before stats are meaningful). |
 | GET | `/monitoring/dashboard` | Monitoring dashboard UI. |
