@@ -4,7 +4,7 @@
 > Unit/smoke-тесты не устанавливают преимущество прогнозов, торговую доходность
 > или промышленное внедрение. Инструкции развёртывания — примеры, не доказательство внедрения.
 
-English version: [README.md](README.md)
+**Русский** · [English](README.md) · [中文](README.zh.md) · [हिन्दी](README.hi.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md)
 
 Веб-приложение для анализа и прогнозирования курсов USD/RUB, EUR/RUB, CNY/RUB и GBP/RUB на
 основе официальных данных Банка России. Включает ансамблевую ML-модель

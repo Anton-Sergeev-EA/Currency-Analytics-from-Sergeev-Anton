@@ -4,7 +4,7 @@
 > Forecast advantage, trading returns and production deployment are not established
 > by the unit/smoke tests. Deployment instructions are examples, not deployment evidence.
 
-Русская версия: [README.ru.md](README.ru.md)
+[Русский](README.ru.md) · **English** · [中文](README.zh.md) · [हिन्दी](README.hi.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md)
 
 A web application for analyzing and forecasting USD/RUB, EUR/RUB, CNY/RUB and GBP/RUB
 exchange rates using official Bank of Russia data. Includes an ensemble
