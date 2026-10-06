@@ -10,10 +10,8 @@ recent rows, all covered by key_rate) worked fine.
 """
 import asyncio
 import json
-import math
 
 import pandas as pd
-import pytest
 from fastapi.encoders import jsonable_encoder
 
 from src.application.services.data_service import DataService
